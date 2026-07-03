@@ -1,4 +1,4 @@
-# 🚁 Skyeris Aero Tech – Backend Framework Evaluation
+ Backend Framework Evaluation
 
 > Production-oriented evaluation of backend frameworks for a real-time Autonomous Drone Ground Control Station (GCS).
 
@@ -175,12 +175,6 @@ The complete benchmark campaign and reports are included in `/results`.
 - Real latency instrumentation
 - Multi-drone simulation
 - CPU and memory profiling
-
----
-
-## License
-
-MIT License
 
 ---
 
