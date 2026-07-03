@@ -1,0 +1,51 @@
+{
+  "rest": {
+    "register_request_required": ["drone_id", "model"],
+    "register_response_required": ["status", "drone_id"],
+    "telemetry_envelope_required": ["run_id", "drone_id", "seq", "timestamp", "payload"],
+    "telemetry_payload_required": ["lat", "lon", "alt", "roll", "pitch", "yaw", "battery", "mode"],
+    "status_ok_response_required": ["status"],
+    "health_response_required": ["status"],
+    "drone_list_response_required": ["drones"],
+    "error_response_required": ["error"],
+    "error_object_required": ["code", "message"]
+  },
+  "websocket": {
+    "message_required": ["drone_id", "seq", "timestamp", "payload"],
+    "payload_required": ["lat", "lon", "alt", "roll", "pitch", "yaw", "battery", "mode"]
+  },
+  "metrics": {
+    "required_families": [
+      "http_requests_total",
+      "http_request_duration_ms",
+      "ws_connections_active",
+      "ws_messages_sent_total",
+      "ws_messages_dropped_total",
+      "ws_send_latency_ms",
+      "telemetry_ingest_total",
+      "telemetry_ingest_latency_ms"
+    ],
+    "allowed_series": [
+      "http_requests_total",
+      "http_request_duration_ms_bucket",
+      "http_request_duration_ms_count",
+      "http_request_duration_ms_sum",
+      "ws_connections_active",
+      "ws_messages_sent_total",
+      "ws_messages_dropped_total",
+      "ws_send_latency_ms_bucket",
+      "ws_send_latency_ms_count",
+      "ws_send_latency_ms_sum",
+      "telemetry_ingest_total",
+      "telemetry_ingest_latency_ms_bucket",
+      "telemetry_ingest_latency_ms_count",
+      "telemetry_ingest_latency_ms_sum"
+    ],
+    "label_rules": {
+      "http_requests_total": ["route", "method", "status"],
+      "http_request_duration_ms_bucket": ["le"],
+      "ws_send_latency_ms_bucket": ["le"],
+      "telemetry_ingest_latency_ms_bucket": ["le"]
+    }
+  }
+}
