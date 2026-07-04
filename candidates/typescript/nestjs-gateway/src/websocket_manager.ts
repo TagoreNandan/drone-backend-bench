@@ -2,7 +2,7 @@ import { WebSocket } from "ws";
 import { MetricsRegistry } from "./metrics.js";
 
 export class WebSocketConnection {
-  public queue: string[] = [];
+  public queue: (string | Uint8Array)[] = [];
   public sending = false;
 
   constructor(
@@ -12,7 +12,7 @@ export class WebSocketConnection {
     private onDisconnect: (id: number) => void
   ) {}
 
-  public enqueue(message: string) {
+  public enqueue(message: string | Uint8Array) {
     if (this.queue.length >= 2048) {
       this.metrics.recordWsDrop();
       return;
@@ -44,9 +44,10 @@ export class WebSocketConnection {
     }
   }
 
-  private sendAsync(message: string): Promise<void> {
+  private sendAsync(message: string | Uint8Array): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.socket.send(message, (err: any) => {
+      const isBinary = message instanceof Uint8Array;
+      this.socket.send(message, { binary: isBinary }, (err: any) => {
         if (err) reject(err);
         else resolve();
       });
@@ -86,7 +87,7 @@ export class WebSocketManager {
     }
   }
 
-  public broadcast(message: string) {
+  public broadcast(message: string | Uint8Array) {
     for (const connection of this.connections.values()) {
       connection.enqueue(message);
     }

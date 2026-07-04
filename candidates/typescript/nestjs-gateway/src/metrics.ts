@@ -157,6 +157,10 @@ export class MetricsRegistry {
     "telemetry_ingest_latency_ms",
     "Telemetry ingestion latency in milliseconds."
   );
+  public telemetry_decode_time_ms = new HistogramMetric(
+    "telemetry_decode_time_ms",
+    "MAVLink telemetry parsing and MessagePack conversion time"
+  );
 
   public recordHttpRequest(route: string, method: string, status: string, durationMs: number): void {
     this.http_requests_total.inc(1.0, [route, method, status]);
@@ -166,6 +170,10 @@ export class MetricsRegistry {
   public recordTelemetryIngest(durationMs: number): void {
     this.telemetry_ingest_total.inc();
     this.telemetry_ingest_latency_ms.observe(durationMs);
+  }
+
+  public recordTelemetryDecode(elapsedMs: number): void {
+    this.telemetry_decode_time_ms.observe(elapsedMs);
   }
 
   public recordWsSend(durationMs: number): void {
@@ -187,6 +195,7 @@ export class MetricsRegistry {
     lines.push(...this.ws_send_latency_ms.render());
     lines.push(...this.telemetry_ingest_total.render());
     lines.push(...this.telemetry_ingest_latency_ms.render());
+    lines.push(...this.telemetry_decode_time_ms.render());
     return lines.join("\n") + "\n";
   }
 }

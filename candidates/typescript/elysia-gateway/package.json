@@ -10,7 +10,9 @@
   "dependencies": {
     "elysia": "^1.0.0",
     "zod": "^3.23.8",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "node-mavlink": "^2.3.0",
+    "@msgpack/msgpack": "^2.1.8"
   },
   "devDependencies": {
     "@types/node": "^20.12.12",

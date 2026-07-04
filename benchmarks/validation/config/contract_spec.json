@@ -1,18 +1,64 @@
 {
   "rest": {
-    "register_request_required": ["drone_id", "model"],
-    "register_response_required": ["status", "drone_id"],
-    "telemetry_envelope_required": ["run_id", "drone_id", "seq", "timestamp", "payload"],
-    "telemetry_payload_required": ["lat", "lon", "alt", "roll", "pitch", "yaw", "battery", "mode"],
-    "status_ok_response_required": ["status"],
-    "health_response_required": ["status"],
-    "drone_list_response_required": ["drones"],
-    "error_response_required": ["error"],
-    "error_object_required": ["code", "message"]
+    "register_request_required": [
+      "drone_id",
+      "model"
+    ],
+    "register_response_required": [
+      "status",
+      "drone_id"
+    ],
+    "telemetry_envelope_required": [
+      "run_id",
+      "drone_id",
+      "seq",
+      "timestamp",
+      "payload"
+    ],
+    "telemetry_payload_required": [
+      "lat",
+      "lon",
+      "alt",
+      "roll",
+      "pitch",
+      "yaw",
+      "battery",
+      "mode"
+    ],
+    "status_ok_response_required": [
+      "status"
+    ],
+    "health_response_required": [
+      "status"
+    ],
+    "drone_list_response_required": [
+      "drones"
+    ],
+    "error_response_required": [
+      "error"
+    ],
+    "error_object_required": [
+      "code",
+      "message"
+    ]
   },
   "websocket": {
-    "message_required": ["drone_id", "seq", "timestamp", "payload"],
-    "payload_required": ["lat", "lon", "alt", "roll", "pitch", "yaw", "battery", "mode"]
+    "message_required": [
+      "drone_id",
+      "seq",
+      "timestamp",
+      "payload"
+    ],
+    "payload_required": [
+      "lat",
+      "lon",
+      "alt",
+      "roll",
+      "pitch",
+      "yaw",
+      "battery",
+      "mode"
+    ]
   },
   "metrics": {
     "required_families": [
@@ -42,10 +88,20 @@
       "telemetry_ingest_latency_ms_sum"
     ],
     "label_rules": {
-      "http_requests_total": ["route", "method", "status"],
-      "http_request_duration_ms_bucket": ["le"],
-      "ws_send_latency_ms_bucket": ["le"],
-      "telemetry_ingest_latency_ms_bucket": ["le"]
+      "http_requests_total": [
+        "route",
+        "method",
+        "status"
+      ],
+      "http_request_duration_ms_bucket": [
+        "le"
+      ],
+      "ws_send_latency_ms_bucket": [
+        "le"
+      ],
+      "telemetry_ingest_latency_ms_bucket": [
+        "le"
+      ]
     }
   }
 }

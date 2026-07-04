@@ -1,7 +1,7 @@
 import { MetricsRegistry } from "./metrics.js";
 
 export class WebSocketConnection {
-  public queue: string[] = [];
+  public queue: (string | Uint8Array)[] = [];
   public sending = false;
 
   constructor(
@@ -11,7 +11,7 @@ export class WebSocketConnection {
     private onDisconnect: (id: number) => void
   ) {}
 
-  public enqueue(message: string) {
+  public enqueue(message: string | Uint8Array) {
     if (this.queue.length >= 2048) {
       this.metrics.recordWsDrop();
       return;
@@ -76,7 +76,7 @@ export class WebSocketManager {
     }
   }
 
-  public broadcast(message: string) {
+  public broadcast(message: string | Uint8Array) {
     for (const connection of this.connections.values()) {
       connection.enqueue(message);
     }
