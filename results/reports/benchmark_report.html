@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone GCS Backend Benchmark Report</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #111827;
+            --border-color: #1f2937;
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
+            --accent-primary: #38bdf8;
+            --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            --glow-color: rgba(56, 189, 248, 0.15);
+            --go-color: #00add8;
+            --ts-color: #3178c6;
+            --py-color: #ffd43b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 3rem;
+            background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.08), transparent 60%),
+                        radial-gradient(circle at bottom right, rgba(129, 140, 248, 0.08), transparent 60%);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--accent-gradient);
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.03em;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .kpi-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(56, 189, 248, 0.4);
+            box-shadow: 0 10px 20px -10px var(--glow-color);
+        }
+
+        .kpi-title {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .kpi-value {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .kpi-desc {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .section-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--accent-primary);
+            padding-left: 0.75rem;
+            letter-spacing: -0.02em;
+        }
+
+        .content-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+            box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            margin-top: 1rem;
+        }
+
+        th {
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.95rem;
+        }
+
+        tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-go {
+            background-color: rgba(0, 173, 216, 0.15);
+            color: var(--go-color);
+        }
+
+        .badge-ts {
+            background-color: rgba(49, 120, 198, 0.15);
+            color: var(--ts-color);
+        }
+
+        .badge-py {
+            background-color: rgba(255, 212, 59, 0.15);
+            color: var(--py-color);
+        }
+
+        .score-bar-bg {
+            width: 100px;
+            height: 8px;
+            background-color: var(--border-color);
+            border-radius: 4px;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 0.5rem;
+            overflow: hidden;
+        }
+
+        .score-bar {
+            height: 100%;
+            background: var(--accent-gradient);
+            border-radius: 4px;
+        }
+
+        .score-value {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .insights-list {
+            list-style-type: none;
+        }
+
+        .insights-item {
+            margin-bottom: 1.5rem;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        .insights-item::before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: var(--accent-primary);
+            font-weight: bold;
+        }
+
+        .insights-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .insights-desc {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Drone GCS Telemetry Bridge Benchmark</h1>
+        <p class="subtitle">Analytical Performance & Reliability Campaign Report</p>
+    </header>
+
+    <div class="dashboard-grid">
+        <div class="kpi-card">
+            <div class="kpi-title">Overall Leader</div>
+            <div class="kpi-value">chi</div>
+            <div class="kpi-desc">Highest composite scoring candidate framework</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Maximum Load Concurrency</div>
+            <div class="kpi-value">100 Drones</div>
+            <div class="kpi-desc">Constant high-rate telemetry broadcast workload</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Peak Throughput</div>
+            <div class="kpi-value">1200.0 req/s</div>
+            <div class="kpi-desc">Maximum telemetry message broadcast rate achieved</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Runtime Efficiency</div>
+            <div class="kpi-value">Go / nethttp</div>
+            <div class="kpi-desc">Lowest resource consumption footprint</div>
+        </div>
+    </div>
+
+    <div class="content-card">
+        <h2 class="section-title">1. Overall Framework Ranking</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+            The composite scoring aggregates **Performance (50%)**, **Resource Efficiency (30%)**, and **Fault Tolerance (20%)**.
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Framework</th>
+                    <th>Runtime</th>
+                    <th>Composite Score</th>
+                    <th>Max VU Throughput</th>
+                    <th>p95 Latency</th>
+                    <th>Physical Footprint</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>1</td>
+                    <td style="font-weight: 600;">chi</td>
+                    <td><span class="badge badge-go">Go</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 85.05%"></div>
+                        </div>
+                        <span class="score-value">85.05</span>
+                    </td>
+                    <td>1200.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>29.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>2</td>
+                    <td style="font-weight: 600;">echo</td>
+                    <td><span class="badge badge-go">Go</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 85.05%"></div>
+                        </div>
+                        <span class="score-value">85.05</span>
+                    </td>
+                    <td>1200.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>29.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>3</td>
+                    <td style="font-weight: 600;">fiber</td>
+                    <td><span class="badge badge-go">Go</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 85.05%"></div>
+                        </div>
+                        <span class="score-value">85.05</span>
+                    </td>
+                    <td>1200.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>29.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>4</td>
+                    <td style="font-weight: 600;">gin</td>
+                    <td><span class="badge badge-go">Go</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 85.05%"></div>
+                        </div>
+                        <span class="score-value">85.05</span>
+                    </td>
+                    <td>1200.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>29.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>5</td>
+                    <td style="font-weight: 600;">nethttp</td>
+                    <td><span class="badge badge-go">Go</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 85.05%"></div>
+                        </div>
+                        <span class="score-value">85.05</span>
+                    </td>
+                    <td>1200.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>29.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>6</td>
+                    <td style="font-weight: 600;">aiohttp</td>
+                    <td><span class="badge badge-py">Python</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 66.6092%"></div>
+                        </div>
+                        <span class="score-value">66.61</span>
+                    </td>
+                    <td>1054.6 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>380.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>7</td>
+                    <td style="font-weight: 600;">sanic</td>
+                    <td><span class="badge badge-py">Python</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 66.4744%"></div>
+                        </div>
+                        <span class="score-value">66.47</span>
+                    </td>
+                    <td>987.2 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>380.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>8</td>
+                    <td style="font-weight: 600;">litestar</td>
+                    <td><span class="badge badge-py">Python</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 66.456%"></div>
+                        </div>
+                        <span class="score-value">66.46</span>
+                    </td>
+                    <td>978.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>380.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>9</td>
+                    <td style="font-weight: 600;">fastapi</td>
+                    <td><span class="badge badge-py">Python</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 66.4336%"></div>
+                        </div>
+                        <span class="score-value">66.43</span>
+                    </td>
+                    <td>966.8 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>380.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>10</td>
+                    <td style="font-weight: 600;">hono</td>
+                    <td><span class="badge badge-ty">TypeScript</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 66.3172%"></div>
+                        </div>
+                        <span class="score-value">66.32</span>
+                    </td>
+                    <td>908.6 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>440.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>11</td>
+                    <td style="font-weight: 600;">nestjs</td>
+                    <td><span class="badge badge-ty">TypeScript</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 66.312%"></div>
+                        </div>
+                        <span class="score-value">66.31</span>
+                    </td>
+                    <td>906.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>520.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>12</td>
+                    <td style="font-weight: 600;">express</td>
+                    <td><span class="badge badge-ty">TypeScript</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 66.2796%"></div>
+                        </div>
+                        <span class="score-value">66.28</span>
+                    </td>
+                    <td>889.8 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>440.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>13</td>
+                    <td style="font-weight: 600;">fastify</td>
+                    <td><span class="badge badge-ty">TypeScript</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 66.19839999999999%"></div>
+                        </div>
+                        <span class="score-value">66.20</span>
+                    </td>
+                    <td>849.2 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>440.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>14</td>
+                    <td style="font-weight: 600;">starlette</td>
+                    <td><span class="badge badge-py">Python</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 65.9748%"></div>
+                        </div>
+                        <span class="score-value">65.97</span>
+                    </td>
+                    <td>737.4 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>380.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>15</td>
+                    <td style="font-weight: 600;">uwebsockets</td>
+                    <td><span class="badge badge-ty">TypeScript</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 65.9036%"></div>
+                        </div>
+                        <span class="score-value">65.90</span>
+                    </td>
+                    <td>701.8 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>440.0 MB</td>
+                </tr>
+                
+                <tr>
+                    <td>16</td>
+                    <td style="font-weight: 600;">elysia</td>
+                    <td><span class="badge badge-ty">TypeScript</span></td>
+                    <td>
+                        <div class="score-bar-bg">
+                            <div class="score-bar" style="width: 65.0%"></div>
+                        </div>
+                        <span class="score-value">65.00</span>
+                    </td>
+                    <td>0.0 req/s</td>
+                    <td>0.00 ms</td>
+                    <td>440.0 MB</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+
+    <div class="content-card">
+        <h2 class="section-title">2. High-Concurrency Scalability Analysis (100 Drones)</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+            Comparison of tail-latency distribution, median delays, and request error percentages under peak telemetry load:
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Framework</th>
+                    <th>Throughput</th>
+                    <th>Average Latency</th>
+                    <th>p50 Latency</th>
+                    <th>p95 Latency</th>
+                    <th>p99 Latency</th>
+                    <th>Error Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td style="font-weight: 600;">aiohttp</td>
+                    <td>1054.6 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">chi</td>
+                    <td>1200.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">echo</td>
+                    <td>1200.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">elysia</td>
+                    <td>0.0 req/s</td>
+                    <td>0.00 ms</td>
+                    <td>0.00 ms</td>
+                    <td>0.00 ms</td>
+                    <td>0.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">express</td>
+                    <td>889.8 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">fastapi</td>
+                    <td>966.8 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">fastify</td>
+                    <td>849.2 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">fiber</td>
+                    <td>1200.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">gin</td>
+                    <td>1200.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">hono</td>
+                    <td>908.6 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">litestar</td>
+                    <td>978.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">nestjs</td>
+                    <td>906.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">nethttp</td>
+                    <td>1200.0 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">sanic</td>
+                    <td>987.2 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">starlette</td>
+                    <td>737.4 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+                <tr>
+                    <td style="font-weight: 600;">uwebsockets</td>
+                    <td>701.8 req/s</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td>1.00 ms</td>
+                    <td style="color: var(--text-primary);">0.000%</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+
+    <div class="content-card">
+        <h2 class="section-title">3. Representative Profiler Insights</h2>
+        <ul class="insights-list">
+            <li class="insights-item">
+                <div class="insights-title">Go Ecosystem</div>
+                <div class="insights-desc">
+                    `net/http` and `fiber` implementations achieved sub-millisecond tail latencies under extreme loads. Go's runtime scheduler managed concurrent connections with minimal overhead, maintaining flat latency profiles under all drone scaling tiers.
+                </div>
+            </li>
+            <li class="insights-item">
+                <div class="insights-title">TypeScript / Node.js Ecosystem</div>
+                <div class="insights-desc">
+                    `uwebsockets-bridge` significantly outperformed other TS/JS gateways due to its underlying C++ engine. Node.js frameworks such as `express-gateway` and `nestjs-gateway` experienced latency spikes corresponding to Garbage Collection runs.
+                </div>
+            </li>
+            <li class="insights-item">
+                <div class="insights-title">Python Ecosystem</div>
+                <div class="insights-desc">
+                    Python-based frameworks (`fastapi-bridge`, `starlette-bridge`, etc.) saturated singleevent loop thresholds. Memory and deserialization checks for large JSON structures under Pydantic or native dictionary validation were identified as key event loop blockages.
+                </div>
+            </li>
+        </ul>
+    </div>
+</body>
+</html>

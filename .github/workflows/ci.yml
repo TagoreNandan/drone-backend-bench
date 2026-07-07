@@ -1,0 +1,114 @@
+name: CI Quality Gate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-format-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Recreate local virtualenv & Install dependencies
+      run: |
+        python -m venv .venv
+        .venv/bin/pip install --upgrade pip
+        .venv/bin/pip install ruff black pytest httpx pymavlink fastcrc lxml python-dotenv fastapi litestar uvicorn msgpack
+
+    - name: Verify Python Formatting (Black)
+      run: |
+        .venv/bin/black --check benchmarks/ candidates/python/fastapi-bridge/src/ candidates/python/fastapi-bridge/tests/
+
+    - name: Lint Python Code (Ruff)
+      run: |
+        .venv/bin/ruff check benchmarks/ candidates/python/fastapi-bridge/src/ candidates/python/fastapi-bridge/tests/
+
+    - name: Run FastAPI candidate unit tests
+      run: |
+        .venv/bin/pytest candidates/python/fastapi-bridge/tests/
+
+    - name: Run Litestar candidate unit tests
+      run: |
+        .venv/bin/pytest candidates/python/litestar-bridge/tests/
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+
+    - name: Verify Go Formatting
+      run: |
+        gofmt -s -d candidates/go/
+        # Check if gofmt prints any modifications needed
+        if [ -n "$(gofmt -l candidates/go/)" ]; then
+          echo "Go formatting errors found"
+          exit 1
+        fi
+
+    - name: Verify Go Linting (go vet)
+      run: |
+        # Run go vet on all candidates
+        for dir in candidates/go/*-bridge; do
+          if [ -d "$dir" ]; then
+            echo "Linting $dir..."
+            cd "$dir"
+            go vet ./...
+            cd - > /dev/null
+          fi
+        done
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Verify TypeScript Gateways Types
+      run: |
+        # Install typescript dependencies and compile test checks where node_modules isn't ignored or can be resolved
+        for dir in candidates/typescript/nestjs-gateway candidates/typescript/elysia-gateway candidates/typescript/fastify-gateway; do
+          if [ -d "$dir" ] && [ -f "$dir/package.json" ]; then
+            echo "Checking TypeScript compiler on $dir..."
+            cd "$dir"
+            npm install --legacy-peer-deps
+            # Only run tsc if tsconfig exists
+            if [ -f "tsconfig.json" ]; then
+              npx tsc --noEmit
+            fi
+            cd - > /dev/null
+          fi
+        done
+
+    - name: Install k6
+      run: |
+        curl -sLO https://github.com/grafana/k6/releases/download/v0.51.0/k6-v0.51.0-linux-amd64.tar.gz
+        tar -xzf k6-v0.51.0-linux-amd64.tar.gz
+        sudo cp k6-v0.51.0-linux-amd64/k6 /usr/local/bin/
+        rm -rf k6-v0.51.0-linux-amd64*
+
+    - name: Build net/http Candidate image for Smoke Test
+      run: |
+        docker build -t nethttp-bridge:latest candidates/go/nethttp-bridge/
+
+    - name: Run Benchmark Smoke Test (Single candidate: nethttp)
+      run: |
+        # Only nethttp is built, so run_campaign will run it and skip others.
+        # Run it and verify it exits cleanly.
+        .venv/bin/python3 benchmarks/run_campaign.py
+        .venv/bin/python3 benchmarks/generate_report.py
+        
+    - name: Verify generated report artifacts
+      run: |
+        ls -la results/reports/
+        test -f results/reports/benchmark_report.md
+        test -f results/reports/benchmark_report.html

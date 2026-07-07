@@ -73,10 +73,12 @@ if [[ "${SCENARIO}" == "websocket" ]]; then
   fi
 
   echo "--> Starting telemetry generator for scenario ${SCENARIO} profile ${PROFILE} (${DRONES} drones @ ${RATE}Hz for ${DUR}s)"
-  python3 /Users/somespecies/Downloads/mavlink_sim.py \
+  HOST_PART=$(echo "$BASE_URL" | sed -e 's/[^:]*:\/\///' -e 's/[:\/].*//')
+  python3 "${ROOT_DIR}/scripts/mavlink_sim.py" \
     --drones "${DRONES}" \
     --rate "${RATE}" \
     --duration "${DUR}" \
+    --host "${HOST_PART}" \
     --port 14550 > /dev/null 2>&1 &
   SIM_PID=$!
   sleep 1

@@ -18,7 +18,9 @@ class ProfileResult:
     p95_ms: float
 
 
-def _summary_metric(summary: dict, metric: str, value: str, default: float = 0.0) -> float:
+def _summary_metric(
+    summary: dict, metric: str, value: str, default: float = 0.0
+) -> float:
     return float(summary.get("metrics", {}).get(metric, {}).get(value, default))
 
 
@@ -47,15 +49,26 @@ def _run_k6(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run k6 telemetry profiles and enforce load consistency rules")
+    parser = argparse.ArgumentParser(
+        description="Run k6 telemetry profiles and enforce load consistency rules"
+    )
     parser.add_argument("--base-url", default="http://localhost:8000")
     parser.add_argument(
         "--criteria",
-        default=str(Path(__file__).resolve().parent.parent / "config" / "readiness_criteria.json"),
+        default=str(
+            Path(__file__).resolve().parent.parent
+            / "config"
+            / "readiness_criteria.json"
+        ),
     )
     parser.add_argument(
         "--k6-script",
-        default=str(Path(__file__).resolve().parent.parent.parent / "k6" / "scenarios" / "telemetry.js"),
+        default=str(
+            Path(__file__).resolve().parent.parent.parent
+            / "k6"
+            / "scenarios"
+            / "telemetry.js"
+        ),
     )
     parser.add_argument(
         "--reports-dir",
@@ -67,7 +80,9 @@ def main() -> int:
         print("VALIDATION FAILED: k6 binary not found in PATH", file=sys.stderr)
         return 1
 
-    criteria = json.loads(Path(args.criteria).read_text(encoding="utf-8"))["load_consistency"]
+    criteria = json.loads(Path(args.criteria).read_text(encoding="utf-8"))[
+        "load_consistency"
+    ]
     reports_dir = Path(args.reports_dir)
     reports_dir.mkdir(parents=True, exist_ok=True)
 
@@ -95,7 +110,14 @@ def main() -> int:
             req_rate = _summary_metric(summary, "http_reqs", "rate")
             failed_rate = _summary_metric(summary, "http_req_failed", "rate")
             p95_ms = _summary_metric(summary, "http_req_duration", "p(95)")
-            results.append(ProfileResult(profile=profile, requests_rate=req_rate, failure_rate=failed_rate, p95_ms=p95_ms))
+            results.append(
+                ProfileResult(
+                    profile=profile,
+                    requests_rate=req_rate,
+                    failure_rate=failed_rate,
+                    p95_ms=p95_ms,
+                )
+            )
 
         profile_index = {item.profile: item for item in results}
 

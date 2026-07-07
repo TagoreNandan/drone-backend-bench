@@ -2,15 +2,15 @@
 
 import argparse
 import math
-import os
 import time
 from pymavlink import mavutil
 from typing import List, Tuple
 
-from scenarios import generate_payload, _get_noise, M_TO_LAT, M_TO_LON, ORIGIN_ALT
+from scenarios import generate_payload, _get_noise, ORIGIN_ALT
 
 # Standard flight modes list
 FLIGHT_MODES = ["STABILIZE", "AUTO", "GUIDED", "RTL", "LAND", "HOVER", "LOITER"]
+
 
 def get_mode_index(mode_str: str) -> int:
     """Map string mode to standard ArduPilot custom_mode integer."""
@@ -52,18 +52,34 @@ def generate_events(
 
 def main():
     parser = argparse.ArgumentParser(description="MAVLink Telemetry Generator")
-    parser.add_argument("--seed", type=int, default=42, help="Deterministic random seed")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Deterministic random seed"
+    )
     parser.add_argument("--drones", type=int, default=1, help="Number of drones")
-    parser.add_argument("--rate", type=float, default=10.0, help="Update frequency in Hz")
-    parser.add_argument("--duration", type=float, default=10.0, help="Duration in seconds")
+    parser.add_argument(
+        "--rate", type=float, default=10.0, help="Update frequency in Hz"
+    )
+    parser.add_argument(
+        "--duration", type=float, default=10.0, help="Duration in seconds"
+    )
     parser.add_argument("--scenario", type=str, default="hover", help="Flight scenario")
-    parser.add_argument("--jitter", type=float, default=0.0, help="Max timing jitter in seconds")
-    parser.add_argument("--loss", type=float, default=0.0, help="Packet loss rate (0.0 to 1.0)")
-    parser.add_argument("--target-host", type=str, default="127.0.0.1", help="Target UDP host")
-    parser.add_argument("--target-port", type=int, default=14550, help="Target UDP port")
+    parser.add_argument(
+        "--jitter", type=float, default=0.0, help="Max timing jitter in seconds"
+    )
+    parser.add_argument(
+        "--loss", type=float, default=0.0, help="Packet loss rate (0.0 to 1.0)"
+    )
+    parser.add_argument(
+        "--target-host", type=str, default="127.0.0.1", help="Target UDP host"
+    )
+    parser.add_argument(
+        "--target-port", type=int, default=14550, help="Target UDP port"
+    )
     args = parser.parse_args()
 
-    print(f"Starting Generator: seed={args.seed}, drones={args.drones}, rate={args.rate}Hz, scenario={args.scenario}")
+    print(
+        f"Starting Generator: seed={args.seed}, drones={args.drones}, rate={args.rate}Hz, scenario={args.scenario}"
+    )
     print(f"Targeting: {args.target_host}:{args.target_port}")
 
     # Create MAVLink connection
@@ -71,7 +87,7 @@ def main():
     conn = mavutil.mavlink_connection(
         f"udpout:{args.target_host}:{args.target_port}",
         source_system=1,
-        source_component=1
+        source_component=1,
     )
 
     # Pre-generate and sort events
@@ -81,7 +97,7 @@ def main():
         rate=args.rate,
         seed=args.seed,
         jitter=args.jitter,
-        loss=args.loss
+        loss=args.loss,
     )
 
     # Track sequence numbers per system/component
@@ -103,7 +119,7 @@ def main():
         events = quantized_events
 
     start_time = time.perf_counter()
-    boot_time_ms = int(time.time() * 1000)
+    int(time.time() * 1000)
 
     for scheduled_t, drone_idx, t_base in events:
         # High precision real-time sleep
@@ -119,7 +135,7 @@ def main():
         # Map drone_idx to MAVLink SysID and CompID
         sysid = (drone_idx % 250) + 1
         compid = (drone_idx // 250) + 1
-        
+
         # Override connection's source IDs for this message
         conn.mav.srcSystem = sysid
         conn.mav.srcComponent = compid
@@ -138,7 +154,7 @@ def main():
             autopilot=mavutil.mavlink.MAV_AUTOPILOT_ARDUPILOTMEGA,
             base_mode=mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
             custom_mode=mode_idx,
-            system_status=mavutil.mavlink.MAV_STATE_ACTIVE
+            system_status=mavutil.mavlink.MAV_STATE_ACTIVE,
         )
 
         # 2. Send ATTITUDE
@@ -149,7 +165,7 @@ def main():
             yaw=payload["yaw"],
             rollspeed=0.0,
             pitchspeed=0.0,
-            yawspeed=0.0
+            yawspeed=0.0,
         )
 
         # 3. Send GLOBAL_POSITION_INT
@@ -165,7 +181,7 @@ def main():
             vx=int(vx * 100),  # m/s to cm/s
             vy=int(vy * 100),
             vz=int(vz * 100),
-            hdg=hdg_val
+            hdg=hdg_val,
         )
 
         # 4. Send SYS_STATUS (Battery)
@@ -182,10 +198,11 @@ def main():
             errors_count1=0,
             errors_count2=0,
             errors_count3=0,
-            errors_count4=0
+            errors_count4=0,
         )
 
     print("Generation complete.")
+
 
 if __name__ == "__main__":
     main()

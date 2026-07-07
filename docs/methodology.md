@@ -14,7 +14,7 @@ The experimental benchmarks measure raw execution throughput and connection stab
 *   **Backpressure handling (verification of drops)**
 
 #### **B. Toolchain & Test Rig Setup**
-1.  **Workload Generator:** A python script ([`mavlink_sim.py`](file:///Users/somespecies/Downloads/mavlink_sim.py)) driving simulated telemetry for 100 drones at 2Hz (yielding a baseline stream of 200 packets/sec).
+1.  **Workload Generator:** A python script ([`mavlink_sim.py`](../benchmarks/k6/scripts/mavlink_sim.py)) driving simulated telemetry for 100 drones at 2Hz (yielding a baseline stream of 200 packets/sec).
 2.  **Telemetry Bridge (Docker):** Detached container instances listening on UDP port `14550/udp` and broadcasting binary MessagePack to a WebSocket endpoint.
 3.  **Load Client (k6):** 2 Virtual Users (VUs) consuming WebSocket frames and verifying binary unpacking integrity.
 

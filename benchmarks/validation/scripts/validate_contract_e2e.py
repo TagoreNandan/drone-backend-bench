@@ -38,16 +38,22 @@ def _load_contract(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _assert_exact_keys(label: str, payload: dict[str, Any], required: list[str]) -> None:
+def _assert_exact_keys(
+    label: str, payload: dict[str, Any], required: list[str]
+) -> None:
     expected = set(required)
     actual = set(payload.keys())
     if expected != actual:
         missing = sorted(expected - actual)
         extras = sorted(actual - expected)
-        raise AssertionError(f"{label} key mismatch. missing={missing}, extras={extras}")
+        raise AssertionError(
+            f"{label} key mismatch. missing={missing}, extras={extras}"
+        )
 
 
-def _http_json(method: str, url: str, body: dict[str, Any] | None, timeout_seconds: float) -> tuple[int, dict[str, Any]]:
+def _http_json(
+    method: str, url: str, body: dict[str, Any] | None, timeout_seconds: float
+) -> tuple[int, dict[str, Any]]:
     encoded = None
     headers: dict[str, str] = {}
     if body is not None:
@@ -84,12 +90,16 @@ def _telemetry_event(run_id: str, drone_index: int, seq: int) -> dict[str, Any]:
     }
 
 
-async def _validate_websocket_and_e2e(config: RuntimeConfig, contract: dict[str, Any]) -> None:
+async def _validate_websocket_and_e2e(
+    config: RuntimeConfig, contract: dict[str, Any]
+) -> None:
     ws_message_required = contract["websocket"]["message_required"]
     ws_payload_required = contract["websocket"]["payload_required"]
 
     ws_target = f"{config.ws_url}/ws/telemetry"
-    async with websockets.connect(ws_target, open_timeout=config.timeout_seconds) as socket:
+    async with websockets.connect(
+        ws_target, open_timeout=config.timeout_seconds
+    ) as socket:
         run_id = "validation-contract-e2e"
         sent = []
         for seq in range(1, 6):
@@ -100,14 +110,18 @@ async def _validate_websocket_and_e2e(config: RuntimeConfig, contract: dict[str,
                 event,
                 timeout_seconds=config.timeout_seconds,
             )
-            assert status == 200, f"telemetry ingest failed with status={status} payload={payload}"
+            assert (
+                status == 200
+            ), f"telemetry ingest failed with status={status} payload={payload}"
             sent.append(event)
 
         for source in sent:
             raw = await asyncio.wait_for(socket.recv(), timeout=config.timeout_seconds)
             message = json.loads(raw)
             _assert_exact_keys("websocket.message", message, ws_message_required)
-            _assert_exact_keys("websocket.payload", message["payload"], ws_payload_required)
+            _assert_exact_keys(
+                "websocket.payload", message["payload"], ws_payload_required
+            )
             expected = {
                 "drone_id": source["drone_id"],
                 "seq": source["seq"],
@@ -115,13 +129,17 @@ async def _validate_websocket_and_e2e(config: RuntimeConfig, contract: dict[str,
                 "payload": source["payload"],
             }
             if message != expected:
-                raise AssertionError(f"websocket message mismatch expected={expected} actual={message}")
+                raise AssertionError(
+                    f"websocket message mismatch expected={expected} actual={message}"
+                )
 
 
 def validate_contract(config: RuntimeConfig, contract: dict[str, Any]) -> None:
     rest = contract["rest"]
 
-    status, body = _http_json("GET", f"{config.base_url}/api/v1/health", None, config.timeout_seconds)
+    status, body = _http_json(
+        "GET", f"{config.base_url}/api/v1/health", None, config.timeout_seconds
+    )
     assert status == 200, f"health status={status}"
     _assert_exact_keys("health.response", body, rest["health_response_required"])
 
@@ -167,22 +185,32 @@ def validate_contract(config: RuntimeConfig, contract: dict[str, Any]) -> None:
         config.timeout_seconds,
     )
     assert status == 400, f"invalid telemetry should fail, status={status}"
-    _assert_exact_keys("error.response.telemetry", body, rest["error_response_required"])
+    _assert_exact_keys(
+        "error.response.telemetry", body, rest["error_response_required"]
+    )
 
-    status, body = _http_json("GET", f"{config.base_url}/api/v1/drones", None, config.timeout_seconds)
+    status, body = _http_json(
+        "GET", f"{config.base_url}/api/v1/drones", None, config.timeout_seconds
+    )
     assert status == 200, f"drones list status={status}"
     _assert_exact_keys("drones.response", body, rest["drone_list_response_required"])
-    if not isinstance(body["drones"], list) or not all(isinstance(item, str) for item in body["drones"]):
+    if not isinstance(body["drones"], list) or not all(
+        isinstance(item, str) for item in body["drones"]
+    ):
         raise AssertionError("drones list must be array<string>")
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Contract compliance + E2E flow validation gate")
+    parser = argparse.ArgumentParser(
+        description="Contract compliance + E2E flow validation gate"
+    )
     parser.add_argument("--base-url", default="http://localhost:8000")
     parser.add_argument("--timeout-seconds", type=float, default=5.0)
     parser.add_argument(
         "--contract-spec",
-        default=str(Path(__file__).resolve().parent.parent / "config" / "contract_spec.json"),
+        default=str(
+            Path(__file__).resolve().parent.parent / "config" / "contract_spec.json"
+        ),
     )
     args = parser.parse_args()
 

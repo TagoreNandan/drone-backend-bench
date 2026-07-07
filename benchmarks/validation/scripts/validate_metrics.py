@@ -7,8 +7,6 @@ import re
 import sys
 import urllib.request
 from pathlib import Path
-from typing import Any
-
 
 SERIES_RE = re.compile(r"^([a-zA-Z_:][a-zA-Z0-9_:]*)(\{([^}]*)\})?\s+(.+)$")
 
@@ -57,12 +55,16 @@ def _parse_metrics(text: str) -> tuple[set[str], list[tuple[str, set[str]]]]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate Prometheus metric families, labels, and extra series")
+    parser = argparse.ArgumentParser(
+        description="Validate Prometheus metric families, labels, and extra series"
+    )
     parser.add_argument("--base-url", default="http://localhost:8000")
     parser.add_argument("--timeout-seconds", type=float, default=5.0)
     parser.add_argument(
         "--contract-spec",
-        default=str(Path(__file__).resolve().parent.parent / "config" / "contract_spec.json"),
+        default=str(
+            Path(__file__).resolve().parent.parent / "config" / "contract_spec.json"
+        ),
     )
     args = parser.parse_args()
 
@@ -84,7 +86,9 @@ def main() -> int:
         if extra_series:
             raise AssertionError(f"Extra metric series detected: {extra_series}")
 
-        missing_series = sorted((allowed_series - seen_series) - {"ws_messages_dropped_total"})
+        missing_series = sorted(
+            (allowed_series - seen_series) - {"ws_messages_dropped_total"}
+        )
         if missing_series:
             raise AssertionError(
                 f"Missing metric series: {missing_series}. "

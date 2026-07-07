@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import os
 import signal
 import sys
 import time
@@ -11,16 +10,27 @@ from typing import Dict, Any
 
 FLIGHT_MODES = ["STABILIZE", "AUTO", "GUIDED", "RTL", "LAND", "HOVER", "LOITER"]
 
+
 def main():
     parser = argparse.ArgumentParser(description="MAVLink Telemetry Recorder")
-    parser.add_argument("--listen-host", type=str, default="0.0.0.0", help="Host to bind UDP port")
-    parser.add_argument("--listen-port", type=int, default=14550, help="UDP port to listen on")
-    parser.add_argument("--output", type=str, default="recording.jsonl", help="Output JSON Lines file")
-    parser.add_argument("--run-id", type=str, default="", help="Run ID for telemetry envelopes")
+    parser.add_argument(
+        "--listen-host", type=str, default="0.0.0.0", help="Host to bind UDP port"
+    )
+    parser.add_argument(
+        "--listen-port", type=int, default=14550, help="UDP port to listen on"
+    )
+    parser.add_argument(
+        "--output", type=str, default="recording.jsonl", help="Output JSON Lines file"
+    )
+    parser.add_argument(
+        "--run-id", type=str, default="", help="Run ID for telemetry envelopes"
+    )
     args = parser.parse_args()
 
     run_id = args.run_id if args.run_id else f"run-{int(time.time())}"
-    print(f"Starting Recorder: listening on {args.listen_host}:{args.listen_port}, run_id={run_id}")
+    print(
+        f"Starting Recorder: listening on {args.listen_host}:{args.listen_port}, run_id={run_id}"
+    )
     print(f"Writing to: {args.output}")
 
     # Open output file
@@ -59,7 +69,9 @@ def main():
 
             if msg_type == "HEARTBEAT":
                 mode_idx = msg.custom_mode
-                mode_str = FLIGHT_MODES[mode_idx] if mode_idx < len(FLIGHT_MODES) else "HOVER"
+                mode_str = (
+                    FLIGHT_MODES[mode_idx] if mode_idx < len(FLIGHT_MODES) else "HOVER"
+                )
                 state_cache.setdefault(drone_id, {})["mode"] = mode_str
 
             elif msg_type == "SYS_STATUS":
@@ -78,7 +90,7 @@ def main():
                 alt = msg.alt / 1000.0  # mm to meters
 
                 cache = state_cache.setdefault(drone_id, {})
-                
+
                 # Fetch cached attributes with safe defaults
                 battery = cache.get("battery", 100)
                 mode = cache.get("mode", "HOVER")
@@ -105,7 +117,7 @@ def main():
                         "yaw": yaw,
                         "battery": battery,
                         "mode": mode,
-                    }
+                    },
                 }
 
                 out_file.write(json.dumps(envelope) + "\n")
@@ -116,6 +128,7 @@ def main():
     finally:
         out_file.close()
         print("Recorder stopped.")
+
 
 if __name__ == "__main__":
     main()

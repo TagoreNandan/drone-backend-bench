@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: drone-gcs-bench-runner:latest
+    container_name: gcs-bench-runner
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/app
+    environment:
+      - RUNNING_IN_DOCKER=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"nethttp-bridge/internal/metrics"
+	"nethttp-bridge/internal/models"
+	"nethttp-bridge/internal/store"
 	"nethttp-bridge/internal/ws"
 
 	"github.com/bluenviron/gomavlib/v3"
@@ -149,6 +151,7 @@ func main() {
 
 	metricsRegistry := metrics.NewRegistry()
 	wsManager := ws.NewWebSocketManager(metricsRegistry)
+	telemetryStore := store.NewStore()
 
 	// Spawn UDP MAVLink Listener
 	mavlinkPortStr := os.Getenv("MAVLINK_PORT")
@@ -172,6 +175,98 @@ func main() {
 	})
 	mux.Handle("/health", healthHandler)
 	mux.Handle("/api/v1/health", healthHandler)
+
+	mux.Handle("/api/v1/drones/register", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var r models.DroneRegistrationRequest
+		if err := json.NewDecoder(req.Body).Decode(&r); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": map[string]interface{}{"code": "INVALID_REQUEST", "message": err.Error()},
+			})
+			return
+		}
+		if err := r.Validate(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": map[string]interface{}{"code": "INVALID_REQUEST", "message": err.Error()},
+			})
+			return
+		}
+		_ = telemetryStore.RegisterDrone(r.DroneID, r.Model)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":   "ok",
+			"drone_id": r.DroneID,
+		})
+	}))
+
+	mux.Handle("/api/v1/telemetry", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var env models.TelemetryEnvelope
+		if err := json.NewDecoder(req.Body).Decode(&env); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": map[string]interface{}{"code": "INVALID_REQUEST", "message": err.Error()},
+			})
+			return
+		}
+		if err := env.Validate(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": map[string]interface{}{"code": "INVALID_REQUEST", "message": err.Error()},
+			})
+			return
+		}
+		_ = telemetryStore.RecordTelemetry(env)
+
+		wsData := map[string]interface{}{
+			"message_type": "TELEMETRY",
+			"drone_id":     env.DroneID,
+			"seq":          *env.Seq,
+			"timestamp":    *env.Timestamp,
+			"payload": map[string]interface{}{
+				"lat":     *env.Payload.Lat,
+				"lon":     *env.Payload.Lon,
+				"alt":     *env.Payload.Alt,
+				"roll":    *env.Payload.Roll,
+				"pitch":   *env.Payload.Pitch,
+				"yaw":     *env.Payload.Yaw,
+				"battery": *env.Payload.Battery,
+				"mode":    env.Payload.Mode,
+			},
+		}
+		payload, err := msgpack.Marshal(wsData)
+		if err == nil {
+			wsManager.Broadcast(payload)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "ok",
+		})
+	}))
+
+	mux.Handle("/api/v1/drones", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		drones, _ := telemetryStore.ListActiveDrones()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"drones": drones,
+		})
+	}))
 
 	mux.Handle("/metrics", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")

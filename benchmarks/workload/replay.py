@@ -8,7 +8,10 @@ import time
 import httpx
 from typing import List, Dict, Any
 
-async def send_telemetry(client: httpx.AsyncClient, base_url: str, event: Dict[str, Any]) -> None:
+
+async def send_telemetry(
+    client: httpx.AsyncClient, base_url: str, event: Dict[str, Any]
+) -> None:
     url = f"{base_url.rstrip('/')}/api/v1/telemetry"
     # Re-pack envelope explicitly to enforce contract spec order and key set
     envelope = {
@@ -25,20 +28,23 @@ async def send_telemetry(client: httpx.AsyncClient, base_url: str, event: Dict[s
             "yaw": event["payload"]["yaw"],
             "battery": event["payload"]["battery"],
             "mode": event["payload"]["mode"],
-        }
+        },
     }
-    
+
     try:
         resp = await client.post(url, json=envelope)
         if resp.status_code != 200:
-            print(f"Error response: status={resp.status_code} body={resp.text}", file=sys.stderr)
+            print(
+                f"Error response: status={resp.status_code} body={resp.text}",
+                file=sys.stderr,
+            )
     except Exception as e:
         print(f"HTTP post exception: {e}", file=sys.stderr)
 
 
 async def replay_events(args) -> None:
     events: List[Dict[str, Any]] = []
-    
+
     print(f"Loading recording: {args.input}")
     with open(args.input, "r", encoding="utf-8") as f:
         for line in f:
@@ -60,11 +66,11 @@ async def replay_events(args) -> None:
     # Semaphore to bound concurrent sockets
     sem = asyncio.Semaphore(args.concurrency)
     limits = httpx.Limits(
-        max_keepalive_connections=args.concurrency,
-        max_connections=args.concurrency * 2
+        max_keepalive_connections=args.concurrency, max_connections=args.concurrency * 2
     )
 
     async with httpx.AsyncClient(limits=limits, timeout=5.0) as client:
+
         async def worker(event: Dict[str, Any], scheduled_time: float):
             async with sem:
                 now = time.perf_counter() - start_time
@@ -92,10 +98,27 @@ async def replay_events(args) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Deterministic Workload Replay Engine")
-    parser.add_argument("--input", type=str, default="recording.jsonl", help="Path to recording JSON Lines file")
-    parser.add_argument("--base-url", type=str, default="http://localhost:8000", help="Target GCS base URL")
-    parser.add_argument("--speed", type=float, default=1.0, help="Replay speed multiplier (0.0 for unlimited)")
-    parser.add_argument("--concurrency", type=int, default=100, help="Max concurrent connections")
+    parser.add_argument(
+        "--input",
+        type=str,
+        default="recording.jsonl",
+        help="Path to recording JSON Lines file",
+    )
+    parser.add_argument(
+        "--base-url",
+        type=str,
+        default="http://localhost:8000",
+        help="Target GCS base URL",
+    )
+    parser.add_argument(
+        "--speed",
+        type=float,
+        default=1.0,
+        help="Replay speed multiplier (0.0 for unlimited)",
+    )
+    parser.add_argument(
+        "--concurrency", type=int, default=100, help="Max concurrent connections"
+    )
     args = parser.parse_args()
 
     asyncio.run(replay_events(args))

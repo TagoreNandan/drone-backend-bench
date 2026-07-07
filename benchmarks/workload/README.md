@@ -72,7 +72,7 @@ Each JSON Line contains:
 
 ## 3. Flight Scenarios
 
-All scenario equations are defined inside [scenarios.py](file:///Users/somespecies/drone-gcs-bench/benchmarks/workload/scenarios.py) and represent mathematical functions of time $t$ to ensure complete reproducibility:
+All scenario equations are defined inside [scenarios.py](scenarios.py) and represent mathematical functions of time $t$ to ensure complete reproducibility:
 
 - **Hover**: Stationary positioning, standard battery discharge, stabilizer noise.
 - **Straight Flight**: Drones fly North at 5 m/s.

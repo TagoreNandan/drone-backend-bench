@@ -10,7 +10,7 @@ This document outlines the limitations, potential biases, and statistical validi
 
 ### **2. Workload Scale Limitations**
 *   **Limitation:** Varying drone scale configurations (`DRONE_COUNT=1`, `DRONE_COUNT=10`, `DRONE_COUNT=100`) do not reflect varying simulator loads.
-*   **Explanation:** The shell runner script [`run-profile.sh`](file:///Users/somespecies/drone-gcs-bench/benchmarks/k6/scripts/run-profile.sh) hardcodes the background simulator settings to `100` drones @ 2Hz whenever the `"websocket"` scenario is selected. Although k6 client properties are configured via environment variables to represent different scales, the physical input load driven to the socket is identical across all runs.
+*   **Explanation:** The shell runner script [`run-profile.sh`](../benchmarks/k6/scripts/run-profile.sh) hardcodes the background simulator settings to `100` drones @ 2Hz whenever the `"websocket"` scenario is selected. Although k6 client properties are configured via environment variables to represent different scales, the physical input load driven to the socket is identical across all runs.
 
 ### **3. CPU/Memory Utilization Limitations**
 *   **Limitation:** Resource utilization metrics are reported as `N/A`.
