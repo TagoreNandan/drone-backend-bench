@@ -32,3 +32,18 @@ Thumbs.db
 recording_*.jsonl
 test_summary.json
 .venv/
+
+# Generated benchmark results
+benchmarks/k6/results/*
+results/*
+
+# Generated benchmark results
+benchmarks/k6/results/*
+!benchmarks/k6/results/.gitkeep
+
+results/*
+!results/
+!results/reports/
+!results/reports/benchmark_report.md
+!results/reports/benchmark_report.html
+!results/.gitkeep
