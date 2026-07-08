@@ -1,0 +1,16 @@
+{
+  "determinism": {
+    "runs": 2,
+    "events_per_run": 30,
+    "interval_ms": 80,
+    "timing_drift_tolerance_ms": 40
+  },
+  "load_consistency": {
+    "profiles": ["100", "500", "1000"],
+    "duration": "45s",
+    "max_failure_rate": 0.02,
+    "min_rate_ratio": 0.9,
+    "max_p95_growth_500_over_100": 3.0,
+    "max_p95_growth_1000_over_500": 3.0
+  }
+}

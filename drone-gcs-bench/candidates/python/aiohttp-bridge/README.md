@@ -1,0 +1,1 @@
+# aiohttp GCS benchmark candidate

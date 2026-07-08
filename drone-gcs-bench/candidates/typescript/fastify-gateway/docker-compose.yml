@@ -1,0 +1,67 @@
+name: drone-gcs-benchmark
+
+x-benchmark-service: &benchmark-service
+  restart: unless-stopped
+  networks:
+    - benchmark-net
+
+services:
+  fastify-reference:
+    <<: *benchmark-service
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: drone-gcs/fastify-reference:latest
+    container_name: fastify-reference
+    environment:
+      HOST: ${FASTIFY_HOST:-0.0.0.0}
+      PORT: ${FASTIFY_PORT:-8000}
+    ports:
+      - "${FASTIFY_PORT:-8000}:8000"
+      - "14550:14550/udp"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const http = require('http'); const port = process.env.PORT || '8000'; const req = http.request({ host: '127.0.0.1', port, path: '/api/v1/health', timeout: 3000 }, (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }); req.on('error', () => process.exit(1)); req.end();"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  prometheus:
+    <<: *benchmark-service
+    image: prom/prometheus:v2.54.1
+    container_name: benchmark-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      fastify-reference:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --spider
+        - -q
+        - http://127.0.0.1:9090/-/healthy
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  benchmark-net:
+    name: benchmark-net
+
+volumes:
+  prometheus-data:

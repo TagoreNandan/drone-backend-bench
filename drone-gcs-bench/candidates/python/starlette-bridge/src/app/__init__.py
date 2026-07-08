@@ -1,0 +1,1 @@
+"""Starlette benchmark application."""

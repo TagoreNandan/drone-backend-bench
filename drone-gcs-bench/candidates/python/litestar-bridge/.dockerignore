@@ -1,0 +1,10 @@
+.git
+.gitignore
+.pytest_cache
+.uv-cache
+.venv
+__pycache__
+*.pyc
+tests
+bts.jsonc
+uv.lock

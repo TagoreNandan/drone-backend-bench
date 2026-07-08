@@ -1,0 +1,5 @@
+pymavlink==2.4.49
+fastcrc==0.3.6
+lxml==6.1.1
+httpx==0.28.1
+python-dotenv==1.2.2

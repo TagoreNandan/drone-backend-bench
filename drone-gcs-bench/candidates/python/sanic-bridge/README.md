@@ -1,0 +1,1 @@
+# Sanic GCS benchmark candidate
