@@ -62,7 +62,8 @@ class BenchmarkService:
         try:
             while True:
                 await websocket.receive()
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, RuntimeError):
             pass
         finally:
             await self._ws_manager.disconnect(connection_id)
+            
