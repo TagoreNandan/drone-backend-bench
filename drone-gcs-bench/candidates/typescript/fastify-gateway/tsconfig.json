@@ -1,3 +1,0 @@
-{
-  "extends": "@fastify-gateway/config/tsconfig.base.json"
-}

@@ -1,1 +1,0 @@
-# Starlette GCS benchmark candidate
