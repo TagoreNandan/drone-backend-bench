@@ -1,214 +1,71 @@
-# Skyeris Aero Tech: Autonomous Drone Ground Control Station Backend Framework Evaluation Report
+# GCS Backend Framework Evaluation Report
 
-**Document Release Date:** July 3, 2026  
+**Date:** July 3, 2026  
 **Prepared By:** Skyeris Aero Tech Engineering Team  
-**Target Audience:** Startup Founders, Technical Leads, Engineering Managers, University Evaluators  
-**Document Status:** Final Release (Frozen Benchmark Infrastructure)
 
 ---
 
-## Table of Contents
-1. [Executive Summary](#1-executive-summary)
-2. [Project Background](#2-project-background)
-3. [Project Objectives](#3-project-objectives)
-4. [System Architecture](#4-system-architecture)
-5. [Framework Selection](#5-framework-selection)
-6. [Benchmark Methodology](#6-benchmark-methodology)
-7. [Evaluation Parameters](#7-evaluation-parameters)
-8. [Benchmark Results](#8-benchmark-results)
-9. [Framework-by-Framework Analysis](#9-framework-by-framework-analysis)
-10. [Comparative Analysis](#10-comparative-analysis)
-11. [Final Recommendations](#11-final-recommendations)
-12. [Future Work](#12-future-work)
-13. [Threats to Validity](#13-threats-to-validity)
-14. [Conclusion](#14-conclusion)
+## 1. What was benchmarked?
+The evaluation covered 13 backend framework candidates across Go, TypeScript/Node.js, and Python, retrofitted to ingest high-frequency UDP MAVLink telemetry, decode binary frames, maintain telemetry state, serialize updates to MessagePack, and broadcast updates over WebSockets.
+
+### Candidate Frameworks
+*   **Go Candidates:** `net/http` (standard library), `Echo`, `Fiber` (built on `fasthttp`), `Chi`, and `Gin`.
+*   **TypeScript / Node.js Candidates:** `uWebSockets.js` (C++ bindings), `Hono`, and `Express`.
+*   **Python Candidates:** `aiohttp`, `Sanic`, `Starlette`, `FastAPI`, and `Litestar`.
+
+### Excluded and Non-Ready Candidates
+*   **Django + Channels (Python):** Excluded due to ORM sync blockages and Redis dependency complexity.
+*   **Fastify Gateway (TypeScript):** Not ready (lacked UDP socket ingestion and MessagePack broadcast).
+*   **NestJS Gateway (TypeScript):** Not ready (lacked UDP MAVLink Ingestion).
+*   **Elysia Gateway (TypeScript/Bun):** Not ready (lacked standardized Docker packaging and metrics endpoints).
 
 ---
 
-## 1. Executive Summary
-
-This report delivers the technical evaluation and empirical benchmark audit for selecting the backend framework powering the **Skyeris Aero Tech Autonomous Drone Ground Control Station (GCS)**. As autonomous drone swarms scale from single-vehicle operations to multi-drone fleet deployments, the GCS backend must reliably ingest high-frequency UDP MAVLink telemetry streams, decode dialect frames, maintain in-memory flight state, and broadcast binary MessagePack payloads to interactive dashboard clients (note: packet delivery latency was not experimentally measured due to clock isolation limitations).
-
-To answer the core engineering research question—*"Which backend framework should Skyeris Aero Tech adopt for its real-time autonomous drone telemetry platform?"*—we constructed an automated, reproducible benchmark campaign and architectural verification suite. A total of **13 production-ready candidate frameworks** across three major language ecosystems (**Go**, **TypeScript/Node.js**, and **Python**) were containerized, retrofitted with standardized UDP MAVLink socket listeners, and subjected to automated load campaigns under identical host and workload profiles (100 simulated drones emitting at 2Hz, yielding 200 aggregate packets/sec).
-
-### Key Empirical & Architectural Findings:
-*   **Go Candidates Exhibit High Throughput and Compact Images:** The Go frameworks (`net/http`, `Fiber`, `Chi`, `Gin`, `Echo`) reached the load ceiling of the benchmark, consistently achieving **2400.00 msg/s** (with `Echo` at 2384.00 msg/s) with **0.00 standard deviation** under test conditions. Built as statically compiled native binaries, Go candidates deploy within minimal multi-stage Docker images averaging **~29 MB**. Active host memory consumption under load was not experimentally measured.
-*   **TypeScript / Node.js Incurs Large Deployment Footprints and Transpilation Overhead:** While `uWebSockets.js` achieved the highest non-Go throughput (**1962.88 msg/s**), TypeScript candidates exhibit large static Docker footprints (**440 MB to 979 MB**). Architectural inspection indicates that running candidates via on-the-fly transpilers (`npx tsx`) adds runtime transpilation overhead, though CPU utilization was not experimentally measured. In ecosystem audits, `node-mavlink` exhibited camelCase property translation inconsistencies (`timeBootMs`), creating serialization mismatches against standard snake_case MAVLink schemas.
-*   **Python Candidates Display Moderate Throughput and Highest Ecosystem Maturity:** Python candidates (`aiohttp`, `Sanic`, `Starlette`, `FastAPI`, `Litestar`) deploy in **~380 MB** static Docker images. In the throughput tests, `aiohttp` led the Python class at **1931.56 msg/s**, while `FastAPI` and `Litestar` clustered around **~1705 msg/s**. Architectural analysis suggests that the lower throughput of some Python candidates compared to Go/Node.js is due to ASGI event loop scheduling and serialization validation overhead, though this was not isolated in measurements. Ecosystem review highlights that Python benefits from `pymavlink`, a field-tested MAVLink parser library.
-
-### Strategic Recommendations:
-Rather than designating a single winner across disparate system boundaries, we recommend a **polyglot, role-tailored architecture**:
-1.  **Edge Telemetry Ingestion Bridge:** Adopt **Go (`net/http` or `Chi`)** for edge ingestion gateways where low static container footprint (~29 MB) and deterministic throughput (2400 msg/s) are critical. This recommendation is scoped to the Apple M1 benchmarked environment; performance on resource-constrained embedded targets was not experimentally verified.
-2.  **Cloud Control Plane & Fleet Management APIs:** Adopt **Python (`FastAPI`)** to maximize developer engineering velocity, OpenAPI schema automation, and data processing pipelines.
-3.  **Real-time Dashboard Gateway:** Adopt **TypeScript (`uWebSockets.js` or `Hono`)** when isomorphic code sharing between frontend React/Vue dashboards and backend WebSocket brokers is the primary architectural driver.
-
----
-
-## 2. Project Background
-
-### 2.1 Startup Context
-Skyeris Aero Tech is an early-stage autonomous aerospace startup developing next-generation command, control, and telemetry infrastructure for commercial drone fleets. In mission-critical applications such as infrastructure inspection, precision agriculture, emergency response, and border surveillance, operators rely on ground control stations to monitor vehicle telemetry in real time.
-
-### 2.2 Autonomous Drone GCS Requirements
-An autonomous drone Ground Control Station differs significantly from traditional web applications. Instead of handling request-response REST traffic over HTTP, a GCS acts as a high-frequency telemetry router. It continuously receives UDP datagrams from flying vehicles, parses complex binary serialization protocols (MAVLink v1/v2), tracks vehicle state (attitude, battery, global position, heartbeat), and pushes state differentials to web-based cockpit UIs at 10 Hz to 50 Hz per vehicle.
-
-### 2.3 Problem Statement
-As Skyeris Aero Tech transitions from prototype single-drone demonstrators to multi-vehicle fleet operations, legacy backend implementations present operational challenges. Potential issues such as garbage collection (GC) pauses, event-loop blocking during MAVLink packet decoding, memory overhead in WebSocket connection pools, and bloated container deployments on resource-constrained host environments require careful architectural selection.
-
-### 2.4 Why Backend Framework Selection Matters
-Selecting the wrong backend framework introduces systemic technical debt:
-*   **Host Resource Constraints:** A framework requiring 1 GB of RAM and high background CPU utilization is unsuitable for resource-constrained hosts or portable ground stations similar to the benchmarked environments.
-*   **Telemetry Droppage:** Inefficient WebSocket broadcasting or blocking UDP socket reads can lead to dropped attitude frames, causing dashboard freezing during critical flight maneuvers.
-*   **Maintainability vs. Performance:** Opting for low-level C/C++ or raw socket programming maximizes throughput but slows feature delivery for a early-stage startup. Conversely, opting for high-level enterprise web frameworks may simplify API development while failing real-time ingestion SLA constraints.
-
----
-
-## 3. Project Objectives
-
-The primary objective of this project is to establish a rigorous, evidence-based evaluation matrix and benchmark campaign to guide Skyeris Aero Tech's backend architecture. Specific goals include:
-1.  **Definitive Candidate Classification:** Audit 17 potential backend frameworks across Python, Go, and TypeScript, establishing a verified benchmark candidate list.
-2.  **Standardized Architectural Retrofit:** Ensure every benchmark candidate independently implements an identical UDP MAVLink socket listener on port `14550`, decodes incoming binary frames, converts them to standardized MessagePack arrays, and broadcasts them over `/ws/telemetry`.
-3.  **Empirical Load Campaign Execution:** Execute automated, isolated Docker load campaigns across all compliant candidates under identical host, workload, and duration constraints, capturing raw streaming metrics without aggregation bias.
-4.  **Multi-Dimensional Analysis:** Evaluate candidates across 21 technical parameters, separating empirical benchmark measurements from code inspection, ecosystem audits, and future work.
-5.  **Role-Specific Architectural Recommendations:** Deliver nuanced, evidence-backed recommendations mapping specific frameworks to distinct operational layers within the Skyeris GCS infrastructure.
-
----
-
-## 4. System Architecture
-
-### 4.1 Complete Telemetry Pipeline
-The Skyeris Aero Tech real-time telemetry architecture is designed as a decoupled, multi-stage ingestion and dissemination pipeline:
+## 2. How was it benchmarked?
+Candidates were evaluated using an automated, containerized pipeline:
 
 ```
-[ MAVLink Simulator / Drone Fleet ]
-             │
-             │  UDP Datagrams (Port 14550/udp)
-             ▼
-[ Target Telemetry Bridge Gateway ]
-  ├── 1. UDP Socket Listener (dgram / net / socket)
-  ├── 2. MAVLink v1/v2 Parser (pymavlink / gomavlib / node-mavlink)
-  ├── 3. In-Memory Telemetry State Store (Attitude, Position, Battery, Status)
-  ├── 4. MessagePack Binary Serializer (@msgpack / msgpack-python / msgpack-go)
-  └── 5. Prometheus Metrics Registry (/metrics & /health endpoints)
-             │
-             │  WebSocket Binary Frames (/ws/telemetry)
-             ▼
-[ Interactive Dashboard Cockpit Clients (k6 Load Consumers / Web UI) ]
+[ MAVLink Simulator ] ──(UDP, Port 14550)──> [ Candidate Gateway ] ──(WS MessagePack)──> [ k6 Clients ]
 ```
 
-### 4.2 Simulator / Telemetry Generation
-To ensure reproducible, deterministic testing without hardware dependencies, background flight generation is handled by `mavlink_sim.py`. The simulator synthesizes multi-vehicle flight dynamics, emitting structured MAVLink packets (`HEARTBEAT`, `ATTITUDE`, `GLOBAL_POSITION_INT`, `SYS_STATUS`) over UDP port `14550` at configurable frequencies (defaulting to 100 drones at 2 Hz).
+### Ingestion & Broadcast Pipeline
+1.  **UDP Ingestion:** Candidates listen on `0.0.0.0:14550` for UDP MAVLink packets from a simulator (`mavlink_sim.py`).
+2.  **State Management:** Decoded telemetry is stored in an in-memory thread-safe state cache.
+3.  **Serialization & Broadcast:** Telemetry updates are serialized to MessagePack and broadcasted to active WebSocket clients.
+4.  **Metrics Ingestion:** Internal counters are exposed on Prometheus `/metrics` and `/health` endpoints.
 
-### 4.3 UDP MAVLink Ingestion
-Each candidate gateway initializes an asynchronous or multithreaded UDP datagram listener bound to `0.0.0.0:14550`. When datagram buffers arrive, they are immediately fed into language-native MAVLink parsing engines to extract frame headers, system IDs, component IDs, and payload fields.
-
-### 4.4 Shared Telemetry State
-Decoded flight parameters are committed to an in-memory thread-safe state registry keyed by drone system ID. This state cache ensures that newly connected dashboard clients immediately receive the latest known telemetry posture upon establishing a WebSocket session.
-
-### 4.5 Metrics Collection
-Every gateway exposes a standardized HTTP GET endpoint at `/metrics` (and `/health` or `/api/v1/health`), formatting internal system counters in Prometheus text presentation format. Tracked metrics include:
-*   `telemetry_decode_time_ms`: Histogram/summary of MAVLink parsing latency (not exported to client logs).
-*   `websocket_connections`: Gauge of active, upgraded WS sessions.
-*   `websocket_messages_sent`: Counter of total outgoing binary frames broadcasted.
-*   `websocket_messages_received`: Counter of incoming client acknowledgment frames.
-
-### 4.6 WebSocket Broadcast
-When telemetry state updates occur, the gateway serializes the structured data dictionary into a compact binary MessagePack byte array (`Uint8Array` / `[]byte` / `bytes`). The binary frame is fanned out across all active WebSocket connection sockets subscribed to `/ws/telemetry`.
-
-### 4.7 Dashboard Clients
-Client consumption is modeled using k6 automated load consumers (`websocket.js`). Virtual users connect to the gateway, perform HTTP-to-WS upgrades, ingest incoming binary MessagePack streams, decode payload headers to verify structural compliance, and record delivery counters.
+### Load Test Execution
+*   **Workload Profile:** Simulator drove 100 drones at 2 Hz, producing 200 packets/sec.
+*   **Client Load:** 2 k6 virtual users upgraded HTTP connections to WebSockets and consumed MessagePack broadcasts.
+*   **Sequence:** Each candidate ran in an isolated Docker container sequentially. Execution consisted of a 5-second warmup run (data discarded), followed by 10 consecutive 5-second test runs.
 
 ---
 
-## 5. Framework Selection
+## 3. What was measured?
+Performance and static footprint parameters were measured via k6 JSONL client logs, Docker image inspections, and source audits:
 
-A total of 17 frameworks were evaluated from the initial research document. Following code inspection and readiness audits, **13 frameworks were classified as Included in Benchmark**, 1 was excluded intentionally, and 3 were classified as Not Yet Benchmark-Ready.
+| Parameter | Method | Status | Evidence Source |
+| :--- | :--- | :--- | :--- |
+| **Concurrent connections** | Experimental Benchmark | Measured | `ws_connections_active` (k6 logs) |
+| **Throughput (Binary vs JSON)** | Experimental Benchmark | Measured | `ws_messages_received_total` (k6 logs) |
+| **Message push latency** | Experimental Benchmark | Not measured | Hardcoded `1.00` ms placeholder value |
+| **MAVLink decode & re-serialize time** | Experimental Benchmark | Not measured | Server `/metrics` not exported to client logs |
+| **Backpressure handling** | Code Inspection | Verified | Gateway `websocket_manager` (2048 buffer) |
+| **Static deployment footprint** | Code Inspection | Verified | Docker base image & package dependencies |
+| **Binary / deployment size** | Code Inspection | Verified | Local `docker images` storage records |
+| **MAVLink library maturity** | Ecosystem Review | Verified | Dependency manifests (`package.json`, `go.mod`, etc.) |
+| **Time-series DB driver quality** | Ecosystem Review | Verified | QuestDB / TimescaleDB client specifications |
+| **MQTT client library maturity** | Ecosystem Review | Verified | client package registries |
+| **Framework-native pub/sub support** | Ecosystem Review | Verified | Redis / NATS / Kafka client modules |
 
-### 5.1 Python Candidates (5 Included, 1 Excluded)
-Python is the lingua franca of aerospace prototyping, data science, and autonomous flight scripting.
-*   **FastAPI:** Included. The industry standard for modern Python ASGI APIs; leverages Pydantic type hints and auto-generated OpenAPI documentation.
-*   **Starlette:** Included. The high-performance ASGI foundational toolkit powering FastAPI; evaluated to measure raw ASGI performance without Pydantic validation overhead.
-*   **aiohttp:** Included. A mature, asynchronous HTTP client/server framework built directly on Python's `asyncio` event loop.
-*   **Sanic:** Included. An asynchronous web server designed specifically for high-speed HTTP responses and WebSocket handling.
-*   **Litestar:** Included. A modern, dependency-injection-driven ASGI framework aiming to outperform FastAPI in enterprise structural ergonomics.
-*   **Django + Channels:** **Excluded Intentionally.** *Evidence for exclusion:* Django's synchronous ORM core and Channels' reliance on Redis layer serialization introduce architectural complexity that is not suited for low-overhead edge telemetry bridges.
-
-### 5.2 Go Candidates (5 Included)
-Go combines C-like execution speed and memory control with modern concurrency primitives (goroutines and channels), making it highly attractive for networking telemetry gateways.
-*   **net/http (Standard Library):** Included. Go's built-in HTTP server; evaluated as the baseline zero-dependency performance standard.
-*   **Echo:** Included. A high-performance, minimalist Go web framework featuring robust routing and middleware chains.
-*   **Fiber:** Included. An Express-inspired Go framework built on top of `fasthttp`, the fastest HTTP engine in the Go ecosystem.
-*   **Chi:** Included. A lightweight, idiomatic routing router built entirely on standard `context` and `net/http` interfaces.
-*   **Gin:** Included. The most widely used Go web framework, featuring martini-like APIs and custom HTTP routing optimizations.
-
-### 5.3 TypeScript / Node.js Candidates (3 Included, 3 Not Ready)
-TypeScript allows full-stack engineering teams to share data models, validation schemas, and serialization libraries directly between frontend web cockpits and backend ingestion bridges.
-*   **uWebSockets.js:** Included. Node.js bindings to `uWebSockets` (C++), renowned as one of the fastest WebSocket brokers in the software industry.
-*   **Hono:** Included. An ultrafast, lightweight web framework designed for edge computing runtimes (Node.js, Bun, Cloudflare Workers).
-*   **Express:** Included. The ubiquitous Node.js web standard; evaluated as a baseline for legacy JavaScript server performance.
-*   **Fastify Gateway:** **Not Yet Benchmark-Ready.** *Evidence:* Candidate directory lacks a compiled MAVLink UDP socket listener and binary MessagePack broadcast implementation.
-*   **NestJS Gateway:** **Not Yet Benchmark-Ready.** *Evidence:* Lacks required UDP MAVLink ingestion binding; heavy Angular-style modular dependency tree not retrofitted for binary streaming.
-*   **Elysia Gateway:** **Not Yet Benchmark-Ready.** *Evidence:* Bun-specific target lacked standardized Dockerfile packaging and compliant `/metrics` endpoints.
+*Note: Runtime CPU, memory utilization, cold start times, reconnection handling, horizontal pub/sub scale, and failover behavior were not experimentally measured.*
 
 ---
 
-## 6. Benchmark Methodology
+## 4. What was observed?
 
-To prevent data contamination and ensure absolute fairness, the benchmark suite was executed under strict isolation rules.
-
-### 6.1 Experimental Methodology
-1.  **Isolated Container Execution:** Each candidate gateway was packaged as an isolated Docker container and executed sequentially to prevent CPU context-switching or memory contention from competing framework processes.
-2.  **Identical Workload Profile:** All test runs utilized the identical background load profile: `run-profile.sh` drove the MAVLink simulator to emit 100 drone streams at 2 Hz (200 packets/sec).
-3.  **Two-Phase Measurement Sequence:** Each candidate executed a **5-second warmup run** (discarded from analysis to allow JIT compilation, bytecode caching, and socket buffer stabilization), followed by **10 consecutive 5-second test runs**.
-4.  **Raw Measurement Preservation:** Every test run exported raw JSONL stream logs directly to `results/<framework>/run01.json` through `run10.json`. No aggregation or smoothing was performed during execution.
-
-### 6.2 Verification Methodology
-Before benchmarking, all 13 candidates underwent an automated verification audit (`verify_all.py`). The test harness spun up each container, confirmed process health via `/health`, validated Prometheus counter formatting on `/metrics`, injected UDP datagrams on port `14550`, connected a WebSocket client to `/ws/telemetry`, and verified binary MessagePack decoding. All 13 candidates achieved **Execution Verified** status.
-
-### 6.3 Architectural & Ecosystem Evaluation
-*   **Architectural Evaluation:** Container footprints were measured via local Docker image registries. Internal source code was inspected to verify backpressure ring-buffer ceilings (enforced at 2048 messages).
-*   **Ecosystem Evaluation:** Dependency manifests (`package.json`, `go.mod`, `requirements.txt`) were audited for MAVLink dialect library support, MQTT client stability, and database driver availability.
-
-### 6.4 Limitations
-*   **Client-Simulator Clock Isolation:** Because k6 runs as an isolated process without clock synchronization to the UDP MAVLink simulator, absolute end-to-end packet transit latency could not be measured experimentally. The client script hardcoded a static check (`wsMessageLatencyMs.add(1.0)`).
-*   **Static Resource Logging:** k6 load logs do not capture host CPU or resident memory consumption during execution. Resource efficiency was evaluated through container static footprints and architectural language properties.
-
----
-
-## 7. Evaluation Parameters
-
-The Master Evaluation Matrix classifies all 21 parameters from the original research specification into distinct evaluation methodologies, ensuring no qualitative review is misrepresented as an experimental measurement.
-
-| # | Parameter | Priority | Evaluation Method | Current Status | Evidence Source | Contributes to Ranking |
-| :---: | :--- | :---: | :---: | :---: | :--- | :---: |
-| **1** | **Concurrent connections sustained** | High | Experimental Benchmark | Measured | `ws_connections_active` (k6 JSONL logs) | Yes |
-| **2** | **Message push latency at 10–50Hz** | Critical | Experimental Benchmark | Not experimentally measured | Hardcoded `wsMessageLatencyMs.add(1.0)` | No |
-| **3** | **Binary vs JSON payload throughput** | High | Experimental Benchmark | Measured | `ws_messages_received_total` (k6 JSONL) | Yes |
-| **4** | **Reconnect / drop handling** | High | Future Work | Not experimentally measured | N/A | No |
-| **5** | **Backpressure handling** | Medium | Code Inspection | Verified | Gateway `websocket_manager.ts` (2048 buffer) | Yes |
-| **6** | **MAVLink decode → re-serialize time** | High | Experimental Benchmark | Not experimentally measured | Server `/metrics` not exported to client logs | No |
-| **7** | **GC pause behavior under load** | Medium | Future Work | Not experimentally measured | N/A | No |
-| **8** | **Long-lived task + many short tasks** | High | Future Work | Not experimentally measured | N/A | No |
-| **9** | **MAVLink/MAVSDK library maturity** | Critical | Ecosystem Review | Verified | `requirements.txt`, `go.mod`, `package.json` | Yes |
-| **10** | **Time-series DB driver quality** | Medium | Ecosystem Review | Verified | TimescaleDB / QuestDB client specifications | Yes |
-| **11** | **Test / mocking ergonomics** | Medium | Code Inspection | Verified | Repository `tests/` and test suites | Yes |
-| **12** | **Cold start time** | Low | Future Work | Not experimentally measured | N/A | No |
-| **13** | **Memory footprint under load** | Medium | Code Inspection | Verified | Docker base image & runtime memory profiles | Yes |
-| **14** | **Binary size / deployment footprint** | Low | Code Inspection | Verified | Local `docker images` storage size records | Yes |
-| **15** | **MQTT client library maturity** | High | Ecosystem Review | Verified | Paho-MQTT, `mqtt.js`, eclipse-paho specifications | Yes |
-| **16** | **MQTT broker integration overhead** | Medium | Ecosystem Review | Verified | System architectural guidelines | No |
-| **17** | **QoS-level latency tradeoff** | High | Future Work | Not experimentally measured | N/A | No |
-| **18** | **Pub/Sub fan-out scalability** | High | Future Work | Not experimentally measured | N/A | No |
-| **19** | **Framework-native pub/sub support** | Medium | Ecosystem Review | Verified | Redis / NATS / Kafka client package registries | Yes |
-| **20** | **Multi-vehicle topic scalability** | High | Future Work | Not experimentally measured | N/A | No |
-| **21** | **Broker failover / durability** | Medium | Future Work | Not experimentally measured | N/A | No |
-
----
-
-## 8. Benchmark Results
-
-### 8.1 Empirical Throughput & Deployment Footprint Summary
-The table below presents the empirical results across all 13 verified candidates. Throughput reflects the mean and statistical distribution of messages received per second across 10 independent 5-second runs.
+### Ingestion Throughput and Deployment Footprint
+Throughput values represent the mean WebSocket messages parsed and consumed per second over 10 consecutive runs. Docker sizes represent the static image footprints.
 
 | Framework | Language | Mean (msg/s) | Median (msg/s) | Min (msg/s) | Max (msg/s) | Std Dev | 95th Pct | 99th Pct | Docker Size |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -226,10 +83,10 @@ The table below presents the empirical results across all 13 verified candidates
 | **fastapi** | Python | **1705.64** | 1718.40 | 1447.60 | 1916.80 | 143.43 | 1873.42 | 1908.12 | **~380 MB** |
 | **litestar** | Python | **1703.60** | 1762.00 | 1402.00 | 1880.00 | 144.77 | 1859.66 | 1875.93 | **~380 MB** |
 
-### 8.2 Comprehensive Verification Audit Status
-All 13 candidates underwent independent verification across five architectural checkpoints. Every framework passed all checks without exception.
+### Verification Audit Status
+All 13 candidates underwent verification across five checkpoints, achieving **Execution Verified** status:
 
-| Framework | Structural Compliance | Health Check Verification | Prometheus Metrics Verification | UDP Socket Ingestion | MessagePack WS Broadcast | Overall Status |
+| Framework | Structural Compliance | Health Check | Prometheus Metrics | UDP Ingestion | MessagePack WS Broadcast | Overall Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **nethttp (Go)** | Compliant | Verified (`/health`) | Verified (`/metrics`) | Verified (14550/udp) | Verified (`/ws/telemetry`) | **Execution Verified** |
 | **fiber (Go)** | Compliant | Verified (`/health`) | Verified (`/metrics`) | Verified (14550/udp) | Verified (`/ws/telemetry`) | **Execution Verified** |
@@ -245,170 +102,25 @@ All 13 candidates underwent independent verification across five architectural c
 | **fastapi (Python)** | Compliant | Verified (`/api/v1/health`)| Verified (`/metrics`) | Verified (14550/udp) | Verified (`/ws/telemetry`) | **Execution Verified** |
 | **litestar (Python)**| Compliant | Verified (`/api/v1/health`)| Verified (`/metrics`) | Verified (14550/udp) | Verified (`/ws/telemetry`) | **Execution Verified** |
 
----
-
-## 9. Framework-by-Framework Analysis
-
-### 9.1 Go Candidates
-#### 1. net/http (Go Standard Library)
-*   **Strengths:** Best-in-class empirical throughput (2400.00 msg/s, 0.00 std dev); zero external framework dependencies; maximum compiled binary stability; ultra-lightweight Docker footprint (~29 MB).
-*   **Weaknesses:** Minimalist routing requires manual URL pattern matching; boilerplate required for complex middleware chains and Prometheus metrics wrapping.
-*   **Suitable Deployment Scenarios:** Tactical edge ingestion gateways and microservices resembling the Apple M1 benchmark environment. (Note: Performance on constrained embedded targets like NVIDIA Jetson or Raspberry Pi was not experimentally benchmarked and requires separate evaluation).
-*   **Production Readiness:** **High.** Robust, battle-tested standard library suitable for immediate production deployment.
-
-#### 2. Echo (Go)
-*   **Strengths:** High empirical throughput (2384.00 msg/s); idiomatic context abstraction; clean middleware chaining; excellent documentation and community support.
-*   **Weaknesses:** Exhibited slight variance in throughput (48.00 std dev) compared to raw `net/http`.
-*   **Suitable Deployment Scenarios:** General-purpose telemetry bridges and API gateways requiring structured REST routes alongside WebSocket streaming.
-*   **Production Readiness:** **High.** Stable enterprise framework widely adopted in high-concurrency production environments.
-
-#### 3. Fiber (Go)
-*   **Strengths:** Saturated benchmark ceiling (2400.00 msg/s); Express-like API syntax eases onboarding for Node.js developers; built on `fasthttp`, which is architecturally designed for high memory allocation efficiency (note: active runtime memory utilization was not measured).
-*   **Weaknesses:** Non-compliance with Go `net/http` standard interfaces prevents seamless integration with standard HTTP profiling and telemetry middleware tools.
-*   **Suitable Deployment Scenarios:** High-velocity backend teams transitioning from Node.js seeking Go-level raw networking speeds without learning complex concurrency patterns.
-*   **Production Readiness:** **High.** Production-ready, provided the team does not rely on third-party `net/http` middleware ecosystems.
-
-#### 4. Chi (Go)
-*   **Strengths:** Saturated benchmark ceiling (2400.00 msg/s); 100% compatible with standard `net/http` handlers; lightweight router abstraction designed to minimize memory allocation during routing (note: active runtime memory utilization was not measured).
-*   **Weaknesses:** Lacks built-in high-level features (e.g., automated OpenAPI generation or integrated CORS wrappers), requiring manual configuration.
-*   **Suitable Deployment Scenarios:** Composable microservice architectures and modular control planes requiring standard HTTP compatibility and maximum performance.
-*   **Production Readiness:** **High.** Exceptional structural stability and maintainability.
-
-#### 5. Gin (Go)
-*   **Strengths:** Saturated benchmark ceiling (2400.00 msg/s); largest community ecosystem among Go web frameworks; rich middleware catalog; custom radix-tree routing engine.
-*   **Weaknesses:** Slightly heavier abstraction layer and larger context API than minimalist routers like Chi.
-*   **Suitable Deployment Scenarios:** Core cloud control plane services and multi-developer backend projects requiring extensive middleware integration.
-*   **Production Readiness:** **High.** The industry standard for Go web services.
+### Framework and Ecosystem Observations
+*   **Go Candidates:** Achieved maximum throughput (2400.00 msg/s) and smallest deployment sizes (~29 MB). Standard `net/http` and `Chi` showed 0.00 throughput variance. `Fiber` and `Chi` minimize routing overhead, though runtime memory under active load was not measured.
+*   **TypeScript Candidates:** `uWebSockets.js` achieved 1962.88 msg/s but has the largest Docker size (~979 MB). In ecosystem checks, `node-mavlink` exhibited camelCase serialization mismatches (`timeBootMs` vs standard `time_boot_ms`), which can lead to parsing errors. TS candidates utilizing `npx tsx` for on-the-fly transpilation inside containers may introduce runtime CPU compilation overhead.
+*   **Python Candidates:** `aiohttp` led the class at 1931.56 msg/s. FastAPI and Litestar clustered around 1705 msg/s. ASGI event-loop scheduling and Pydantic serialization may introduce execution overhead, though this was not isolated experimentally. Python benefits from `pymavlink`, the most mature and compliant MAVLink parser library checked.
 
 ---
 
-### 9.2 TypeScript / Node.js Candidates
-#### 6. uWebSockets.js (TypeScript / Node.js)
-*   **Strengths:** Best empirical throughput among non-Go candidates (1962.88 msg/s); utilizes optimized C++ core networking bindings; architecturally designed to bypass standard Node.js event loop bottlenecks for WebSocket handling.
-*   **Weaknesses:** Non-standard routing and request/response APIs; complex native C++ build tooling; heaviest static Docker deployment footprint in the audit (**~979 MB**); susceptible to TypeScript camelCase MAVLink translation inconsistencies (`timeBootMs`).
-*   **Suitable Deployment Scenarios:** Dedicated, standalone WebSocket broadcasting brokers in Node.js cloud infrastructures handling thousands of concurrent dashboard UI consumers.
-*   **Production Readiness:** **Medium-High.** Highly performant, but requires specialized engineering oversight for C++ compilation and schema property mapping.
-
-#### 7. Hono (TypeScript)
-*   **Strengths:** Ultrafast, web-standard design; multi-runtime execution compatibility (Node.js, Bun, Cloudflare Workers, Deno); clean, modern TypeScript syntax; moderate Docker footprint (~440 MB).
-*   **Weaknesses:** Empirical throughput (1773.72 msg/s) lags behind compiled Go engines; reliant on runtime transpilation wrappers (`tsx`) in Node environments.
-*   **Suitable Deployment Scenarios:** Next-generation edge deployments, serverless cloud routing, and unified isomorphic web applications.
-*   **Production Readiness:** **High.** Rapidly maturing ecosystem with excellent developer ergonomics.
-
-#### 8. Express (TypeScript / Node.js)
-*   **Strengths:** Ubiquitous developer familiarity; massive npm ecosystem; straightforward integration with legacy web tooling; moderate Docker footprint (~440 MB).
-*   **Weaknesses:** Empirical throughput (1772.94 msg/s) and high standard deviation (181.01 msg/s); requires external wrappers (`express-ws`) for WebSocket support; legacy callback/promise architectural roots.
-*   **Suitable Deployment Scenarios:** Standard internal web administration panels and low-frequency auxiliary management APIs where real-time telemetry throughput is secondary.
-*   **Production Readiness:** **High.** Mature and stable, but architecturally dated for high-frequency telemetry streaming.
+## 5. What limitations exist?
+1.  **Mocked Latency Metric:** End-to-end packet transmission latency was not experimentally measured due to isolated clock spaces. The `1.00` ms average latency is a hardcoded placeholder from the client script and must not be used for speed comparisons.
+2.  **Workload Scale Overrides:** The shell runner script `run-profile.sh` hardcoded simulator settings to 100 drones @ 2Hz for the WebSocket scenario, neutralizing environment variables for smaller drone configurations.
+3.  **Unmeasured Runtime CPU & Memory Utilization:** CPU and memory utilization under active load were not monitored or captured. Resource assessments are limited to static Docker image sizes and code inspections.
+4.  **Hypervisor Overhead:** Virtualized Linux socket and storage layers inside Docker Desktop on macOS may introduce translation overhead not present in bare-metal deployments.
+5.  **Small Statistical Sample:** Tests were limited to 10 runs of 5 seconds each, which is insufficient to evaluate long-term memory leaks, garbage collection spikes, or socket exhaustion.
 
 ---
 
-### 9.3 Python Candidates
-#### 9. aiohttp (Python)
-*   **Strengths:** Highest empirical throughput in the Python class (1931.56 msg/s); native asynchronous client and server implementation built directly on `asyncio`; direct compatibility with `pymavlink` and scientific Python libraries.
-*   **Weaknesses:** Less automated developer tooling and API documentation generation compared to FastAPI; requires manual OpenAPI schema writing.
-*   **Suitable Deployment Scenarios:** High-throughput Python microservices, data ingestion workers, and AI/ML telemetry pre-processing pipelines.
-*   **Production Readiness:** **High.** Extremely stable and widely used in asynchronous Python infrastructure.
+## 6. What conclusions are supported by the measurements?
+The measured throughput and static image sizes support a polyglot architecture for distinct components of the telemetry stack:
 
-#### 10. Sanic (Python)
-*   **Strengths:** Solid empirical throughput (1728.72 msg/s); syntax familiar to Flask developers while executing on an asynchronous web server engine; built-in WebSocket support.
-*   **Weaknesses:** Smaller enterprise community and ecosystem compared to FastAPI or Django; occasional plugin compatibility lag with new Python releases.
-*   **Suitable Deployment Scenarios:** Dedicated asynchronous web microservices and mid-tier telemetry routing bridges.
-*   **Production Readiness:** **Medium-High.** Stable performance, but requires careful dependency curation.
-
-#### 11. Starlette (Python)
-*   **Strengths:** Solid empirical throughput (1708.64 msg/s); lightweight, foundational ASGI framework; minimal abstraction overhead; excellent WebSocket and background task primitives.
-*   **Weaknesses:** Lacks built-in data validation and serialization (requires adding Pydantic or manual JSON parsing); no automated OpenAPI generation.
-*   **Suitable Deployment Scenarios:** Custom, high-performance ASGI gateways and modular routing layers where engineers desire FastAPI's speed without Pydantic validation overhead.
-*   **Production Readiness:** **High.** The rock-solid foundation underlying the modern Python ASGI ecosystem.
-
-#### 12. FastAPI (Python)
-*   **Strengths:** Unrivaled developer engineering productivity; automated Pydantic data validation and serialization; out-of-the-box interactive OpenAPI/Swagger documentation; massive adoption in AI/ML aerospace engineering.
-*   **Weaknesses:** Empirical throughput (1705.64 msg/s) is the lowest among tested candidates, which architectural analysis attributes to Pydantic validation and ASGI event-loop design, though these factors were not isolated experimentally.
-*   **Suitable Deployment Scenarios:** Cloud control plane APIs, user management services, mission planning endpoints, and analytics gateways where engineering velocity dominates raw UDP socket speed.
-*   **Production Readiness:** **High.** The industry standard for modern Python API development.
-
-#### 13. Litestar (Python)
-*   **Strengths:** Comparable empirical throughput to FastAPI (1703.60 msg/s); modern, structured architecture featuring built-in dependency injection, DTOs, and advanced data modeling.
-*   **Weaknesses:** Smallest developer community among Python candidates; fewer third-party integrations and tutorials.
-*   **Suitable Deployment Scenarios:** Enterprise-scale Python API codebases requiring strict dependency injection and architectural governance.
-*   **Production Readiness:** **Medium-High.** Architecturally rigorous, but requires internal team commitment due to a smaller community footprint.
-
----
-
-## 10. Comparative Analysis
-
-### 10.1 Throughput Performance & Deployment Footprints
-The empirical benchmark results establish a clear performance hierarchy driven by underlying language execution models:
-1.  **Go Candidates (Tier 1):** Go gateways achieved the highest measured throughput, consistently saturating the 2400 msg/s load ceiling. In terms of static deployment metrics, they occupy an ultra-compact ~29 MB Docker footprint. Resource efficiency (CPU/RAM) under active load was not experimentally measured.
-2.  **TypeScript / Node.js Candidates (Tier 2):** Leveraging C++ bindings (`uWebSockets.js`), Node.js achieves impressive throughput (**1962.88 msg/s**). However, standard TS frameworks (`Hono`, `Express`) cluster around **~1773 msg/s**. Their reliance on heavy runtime dependency trees pushes container sizes from **440 MB to 979 MB**, resulting in a significantly larger static footprint than the Go candidates. Their suitability for memory-constrained environments requires further verification since active memory consumption was not measured.
-3.  **Python Candidates (Tier 3):** Python ASGI frameworks (`FastAPI`, `Starlette`, `Litestar`, `Sanic`) cluster around **~1705 msg/s to 1728 msg/s**, while `aiohttp` reaches **1931.56 msg/s**. Static Docker images require **~380 MB**. While architectural analysis attributes the throughput delta to the Global Interpreter Lock (GIL) and ASGI event loop overhead, active runtime CPU profiling was not part of this campaign.
-
-### 10.2 Maintainability & Ecosystem Maturity
-*   **Python:** Unmatched ecosystem maturity for autonomous systems. The `pymavlink` library is the aerospace industry standard, offering complete, battle-tested MAVLink v1/v2 dialect definitions and zero translation friction.
-*   **Go:** High maintainability due to strict static typing, simplicity, and excellent backward compatibility. While `gomavlib` is performant, the Go MAVLink ecosystem is smaller than Python's, occasionally requiring manual schema generation for proprietary drone dialects.
-*   **TypeScript:** Full-stack maintainability is enhanced by sharing TypeScript interfaces between dashboard UI components and backend bridges. However, `node-mavlink` introduces serious maintainability risks due to automatic camelCase property translation (`timeBootMs`), which causes silent `undefined` errors when interacting with standard snake_case telemetry databases.
-
-### 10.3 Developer Productivity & Deployment
-*   **Developer Productivity:** Python (`FastAPI`) leads overwhelmingly. Auto-generated Swagger UI, instant Pydantic schema validation, and extensive AI/ML documentation allow small engineering teams to iterate rapidly. Go requires more verbose boilerplate for routing and data transformations, while TypeScript productivity is hampered by transpilation build steps and type-mapping quirks.
-*   **Deployment & Scalability:** Go is highly efficient for deployment due to its small footprint. A single compiled binary inside a 29 MB Alpine container minimizes deployment size. Python and Node.js require multi-hundred-megabyte runtime images, increasing image transfer overhead. Cold start times and runtime load times were not experimentally measured.
-
----
-
-## 11. Final Recommendations
-
-Based on documented empirical benchmark evidence, architectural audits, and ecosystem reviews, we advise Skyeris Aero Tech to reject a "single framework winner" mandate. Autonomous drone infrastructure encompasses distinct computational domains that benefit from a **polyglot architecture**:
-
-### 11.1 Telemetry Bridge (Edge & Ingestion Gateway): Recommend Go (`net/http` or `Chi`)
-*   **Justification:** The Telemetry Bridge directly ingests high-frequency UDP MAVLink datagrams. Based on the M1 benchmark environment, Go's empirical saturation of the **2400 msg/s** ceiling and its minimal **~29 MB** static Docker footprint make it the recommended engineering choice for telemetry ingestion. Performance on specific embedded companion computers was not experimentally measured and should be validated in situ. Additionally, garbage collection dynamics and active memory/CPU overhead were not profiled during this campaign.
-*   **Implementation Strategy:** Deploy `Chi` or raw `net/http` on ingestion hosts to ingest UDP traffic, decode MAVLink frames via `gomavlib`, and publish binary MessagePack payloads directly to local IPC or high-speed messaging buses.
-
-### 11.2 Control Plane APIs & Fleet Management: Recommend Python (`FastAPI`)
-*   **Justification:** The cloud control plane manages mission planning, pilot authorization, flight log analytics, and predictive maintenance. In this layer, raw UDP socket speed is secondary; engineering velocity and ecosystem integration are paramount. FastAPI's empirical throughput (**1705.64 msg/s** under the tested workloads) is expected to be sufficient for REST control operations, while its automatic OpenAPI generation and seamless integration with `pymavlink`, NumPy, and PyTorch provide a startup velocity advantage.
-*   **Implementation Strategy:** Utilize FastAPI to power REST and GraphQL APIs, handling user authentication, flight plan validation, and persistent telemetry archiving into time-series databases.
-
-### 11.3 Real-Time Dashboard Gateway: Recommend TypeScript (`uWebSockets.js` or `Hono`)
-*   **Justification:** For cloud-facing WebSocket gateways broadcasting live telemetry to web cockpits, frontend compatibility is crucial. Choosing TypeScript allows Skyeris Aero Tech to share exact data models, MessagePack decoding schemas, and state interfaces between React/Vue cockpit UIs and the broadcasting server. `uWebSockets.js` provides high empirical throughput (**1962.88 msg/s** under test conditions), while `Hono` offers a modern, lightweight alternative. Note that client fan-out scaling was not experimentally evaluated beyond the 2 active WebSocket connections specified in the benchmark.
-*   **Implementation Strategy:** Deploy TypeScript brokers in cloud regions to subscribe to internal telemetry streams and fan out binary MessagePack WebSocket frames to authenticated web dashboard browsers.
-
-### 11.4 Future MQTT / PubSub Architecture: Recommend Go + NATS / MQTT Broker
-*   **Justification:** As fleet scale expands, point-to-point WebSocket bridges can evolve into a publish/subscribe broker topology. From an ecosystem perspective, Go's concurrency model and client libraries make it a candidate language for bridging MAVLink streams into distributed messaging backbones like NATS or EMQX, subject to future benchmarking.
-
----
-
-## 12. Future Work
-
-To expand upon this baseline evaluation and support enterprise fleet scalability, engineering efforts should proceed across six future research tracks:
-1.  **True End-to-End Latency Measurement:** Modify `mavlink_sim.py` to embed high-precision microsecond UTC epoch timestamps inside proprietary MAVLink payload fields. Upgrade k6 consumer scripts to extract these timestamps upon frame arrival, enabling exact calculation of network ingest, decode, and WebSocket broadcast latency percentiles ($p50, p95, p99$).
-2.  **MQTT Transport Integration:** Implement standardized MQTT QoS 0, 1, and 2 ingestion adapters across top candidate gateways to evaluate latency tradeoffs, bandwidth overhead, and broker connection stability over unreliable cellular and satellite radio links.
-3.  **Distributed Pub/Sub Scaling:** Integrate high-performance cloud messaging backbones (NATS JetStream, Apache Kafka, or Redis Pub/Sub) between the UDP ingestion layer and the WebSocket broadcast gateways to test horizontal fan-out scalability under multi-client loads.
-4.  **Multi-Drone Workload Parameterization:** Refactor the shell runner script (`run-profile.sh`) to dynamically pass variable drone scale counts ($10, 100, 500, 5000$) and telemetry frequencies ($10\text{ Hz}, 50\text{ Hz}$) from the Python campaign orchestrator, mapping non-linear degradation curves.
-5.  **Automated CPU & Resident Memory Profiling:** Integrate runtime container telemetry capture (`docker stats` or cgroup resource monitors) directly into the automated benchmark orchestrator to empirically graph CPU core utilization and resident memory ($RSS$) trajectories during active load windows.
-6.  **Fleet-Scale Chaos & Durability Testing:** Conduct long-duration stress campaigns (12 to 24 hours) incorporating network jitter, packet packet loss, abrupt socket reconnections, and broker failover events to evaluate framework memory leak resistance and recovery SLAs.
-
----
-
-## 13. Threats to Validity
-
-To maintain rigorous academic and engineering standards, we explicitly document eight threats to the validity of this evaluation:
-1.  **Mocked Client Latency Metric:** Because the k6 load generator runs in an isolated process space without clock synchronization to the background UDP MAVLink simulator, client delivery latency was recorded as a hardcoded static check (`wsMessageLatencyMs.add(1.0)`). Reported latency values represent a placeholder and must not be interpreted as empirical transit measurements. Specifically, the 1.0 ms value is a hardcoded placeholder from the client test script and does not represent physical network, parsing, or broadcast latency.
-2.  **Workload Scale Neutralization:** The shell script `run-profile.sh` hardcodes background simulator settings to `100` drones at 2 Hz whenever the `"websocket"` scenario is selected. Consequently, environment variables specifying `DRONE_COUNT=1` or `10` were overridden; all test runs received an identical physical ingestion load of 200 packets/sec.
-3.  **Qualitative Resource Consumption Assessment:** In the absence of automated cgroup profiling during test execution, host CPU and RAM utilization could not be numerically graphed in k6 logs. Resource efficiency conclusions are derived from compiled container footprints (`docker images`), runtime architectural properties, and code inspection.
-4.  **Docker Virtualization Overhead:** All benchmarks were executed inside Docker Desktop on an Apple M1 macOS host. Virtualized Linux Kit hypervisor networking and storage translation layers introduce overhead that may not perfectly mirror bare-metal Linux execution on field companion computers.
-5.  **TypeScript Transpilation Bias:** TypeScript candidates (`Hono`, `Express`, `uWebSockets.js`) were executed via on-the-fly runtime transpilers (`npx tsx`) inside production containers. This introduced background TypeScript compiling threads and expanded `node_modules` footprints, penalizing TS performance relative to pre-bundled JavaScript execution.
-6.  **Sequential Execution & Host OS Contention:** Candidate campaigns were run sequentially on a single host. Background OS tasks, thermal throttling, or temporary Docker socket disconnects (as observed mid-campaign) could introduce minor statistical noise across sequential runs.
-7.  **Bounded Sample Size:** The empirical campaign was restricted to 10 test runs of 5 seconds per candidate. This duration is sufficient to evaluate peak throughput, but insufficient to capture long-term heap fragmentation, memory leaks, or gradual socket pool exhaustion over hours of flight operations.
-8.  **Single-Client Fan-Out Limitation:** WebSocket broadcast performance was evaluated using a fixed load of 2 virtual users (VUs). Performance under massive client fan-out (e.g., 1,000 simultaneous browser cockpits subscribing to a single gateway) was not experimentally tested.
-
----
-
-## 14. Conclusion
-
-This report provides Skyeris Aero Tech with an evidence-backed roadmap for answering the original research question: *"Which backend framework should Skyeris Aero Tech adopt for its real-time autonomous drone telemetry platform?"*
-
-Our empirical benchmark campaign and architectural verification audit demonstrate that no single framework possesses superior characteristics across all operational layers of an autonomous drone Ground Control Station. Mandating a monolithic framework selection would force engineering trade-offs that compromise either edge real-time performance or cloud developer velocity.
-
-By adopting our recommended **polyglot architecture**—deploying **Go (`net/http` or `Chi`)** for efficient, low-footprint MAVLink Ingestion (~29 MB static Docker size, 2400 msg/s throughput under test conditions), **Python (`FastAPI`)** for cloud control plane API development and data processing integration, and **TypeScript (`uWebSockets.js` or `Hono`)** for web dashboard broadcasting—Skyeris Aero Tech can successfully decouple high-frequency flight telemetry ingestion from enterprise management workflows. This strategy, when validated against specific embedded and production hardware targets, positions the company to scale safely from prototype drone demonstrators to commercial multi-vehicle autonomous fleets.
-
----
-*End of Technical Evaluation Report. All supporting code, scripts, raw JSONL benchmark databases, and verification test harnesses are archived in the project repository.*
+1.  **Go Candidates (`net/http` or `Chi`):** Preferred choice for edge telemetry ingestion bridges where low static image size (~29 MB) and maximum ingestion throughput (2400 msg/s) are required. Deployments on constrained target hardware must be validated independently.
+2.  **Python Candidates (`FastAPI`):** Preferred choice for the cloud control plane and fleet management APIs. The throughput delta compared to Go is negligible for REST/CRUD control operations, and the framework provides OpenAPI generation and direct integration with mature `pymavlink` parser scripts.
+3.  **TypeScript Candidates (`uWebSockets.js` or `Hono`):** Preferred choice for WebSocket broadcasting gateways when isomorphic frontend-backend type sharing is required. `uWebSockets.js` provides the highest non-Go throughput (1962.88 msg/s) under tested configurations.

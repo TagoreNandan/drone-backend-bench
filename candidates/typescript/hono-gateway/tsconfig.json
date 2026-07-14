@@ -1,0 +1,3 @@
+{
+  "extends": "@hono-gateway/config/tsconfig.base.json"
+}

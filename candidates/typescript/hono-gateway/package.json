@@ -1,0 +1,27 @@
+{
+  "name": "hono-gateway",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "check-types": "turbo check-types",
+    "dev:server": "turbo -F server dev"
+  },
+  "dependencies": {
+    "@hono-gateway/env": "workspace:*",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@hono-gateway/config": "workspace:*",
+    "@types/node": "catalog:",
+    "turbo": "^2.10.0",
+    "typescript": "catalog:"
+  },
+  "packageManager": "pnpm@11.9.0"
+}
