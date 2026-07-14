@@ -34,11 +34,6 @@ CANDIDATES = {
         "url": "http://localhost:8000",
         "lang": "Python",
     },
-    "fastify": {
-        "dir": "candidates/typescript/fastify-gateway",
-        "url": "http://localhost:8000",
-        "lang": "TypeScript",
-    },
     "hono": {
         "dir": "candidates/typescript/hono-gateway",
         "url": "http://localhost:8000",
@@ -46,16 +41,6 @@ CANDIDATES = {
     },
     "express": {
         "dir": "candidates/typescript/express-gateway",
-        "url": "http://localhost:8000",
-        "lang": "TypeScript",
-    },
-    "nestjs": {
-        "dir": "candidates/typescript/nestjs-gateway",
-        "url": "http://localhost:8000",
-        "lang": "TypeScript",
-    },
-    "elysia": {
-        "dir": "candidates/typescript/elysia-gateway",
         "url": "http://localhost:8000",
         "lang": "TypeScript",
     },

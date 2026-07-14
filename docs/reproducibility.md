@@ -15,9 +15,9 @@ docker compose up --build
 ```
 
 ### 2. Verify Output
-Once the benchmark campaign completes, check for the compiled reports in:
-- Markdown Report: [results/reports/benchmark_report.md](../results/reports/benchmark_report.md)
-- Interactive HTML Dashboard: [results/reports/benchmark_report.html](../results/reports/benchmark_report.html)
+Once the benchmark campaign completes, the generated reports are stored locally:
+- Markdown Report: `results/reports/benchmark_report.md`
+- Interactive HTML Dashboard: `results/reports/benchmark_report.html`
 
 ---
 
@@ -41,9 +41,6 @@ docker build -t gin-bridge:latest candidates/go/gin-bridge/
 docker build -t hono-gateway:latest candidates/typescript/hono-gateway/
 docker build -t uwebsockets-bridge:latest candidates/typescript/uwebsockets-bridge/
 docker build -t express-gateway:latest candidates/typescript/express-gateway/
-docker build -t fastify-gateway:latest candidates/typescript/fastify-gateway/
-docker build -t nestjs-gateway:latest candidates/typescript/nestjs-gateway/
-docker build -t elysia-gateway:latest candidates/typescript/elysia-gateway/
 ```
 
 ### 2. Prepare Local Python Environment

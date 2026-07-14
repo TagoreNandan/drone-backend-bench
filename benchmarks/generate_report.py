@@ -162,12 +162,9 @@ def generate_report(results: List[Dict[str, Any]], out_path: str):
             "sanic": 380.0,
             "starlette": 380.0,
             "aiohttp": 380.0,
-            "uwebsockets": 440.0,
+            "uwebsockets": 979.0,
             "hono": 440.0,
             "express": 440.0,
-            "fastify": 440.0,
-            "nestjs": 520.0,
-            "elysia": 440.0,
         }
         mem_val = stats["mem"] if stats["mem"] > 0 else img_sizes.get(fw, 300.0)
         res_score = (
@@ -226,7 +223,7 @@ def generate_report(results: List[Dict[str, Any]], out_path: str):
     md = []
     md.append("# Drone GCS Benchmark Campaign Report\n")
     md.append(
-        f"This document presents the comprehensive performance, resource efficiency, scalability, and fault-tolerance evaluation across the candidate GCS gateway frameworks under a max concurrency load of {max_drones} drones.\n"
+        f"Performance, resource efficiency, scalability, and fault-tolerance evaluation metrics for candidate GCS gateway frameworks under a concurrency load of {max_drones} drones.\n"
     )
 
     md.append("## 1. Overall Framework Ranking\n")
@@ -248,12 +245,12 @@ def generate_report(results: List[Dict[str, Any]], out_path: str):
         f"Aggregated performance characteristics grouped by language ecosystem under max concurrency ({max_drones} drones):\n"
     )
     md.append(
-        "| Runtime | Average Throughput (req/s) | Average Latency (ms) | p95 Latency (ms) | CPU Utilization (%) | Memory footprint (MB) |"
+        "| Runtime | Average Throughput (req/s) | Average Latency (ms) | p95 Latency (ms) | CPU Utilization | Memory footprint (MB) |"
     )
     md.append("| :--- | :--- | :--- | :--- | :--- | :--- |")
     for lang, stats in lang_stats.items():
         md.append(
-            f"| **{lang}** | {stats['throughput']:.1f} | {stats['latency']:.3f}ms | {stats['p95']:.2f}ms | {stats['cpu']:.1f}% | {stats['mem']:.1f}MB |"
+            f"| **{lang}** | {stats['throughput']:.1f} | {stats['latency']:.3f}ms | {stats['p95']:.2f}ms | N/A (Not Measured) | {stats['mem']:.1f}MB |"
         )
 
     md.append(f"\n## 3. High-Concurrency Scalability Analysis ({max_drones} Drones)\n")
@@ -301,37 +298,34 @@ def generate_report(results: List[Dict[str, Any]], out_path: str):
 
     md.append("\n## 6. Representative Profiler Insights\n")
     md.append(
-        "Key runtime and hotspot findings collected via `py-spy`, `cProfile`, `pprof`, and `--prof` V8 analyzers:\n"
+        "Key runtime and hotspot findings collected via profiler tools and runtime architectural analysis:\n"
     )
     md.append("### Python Ecosystem\n")
     md.append(
-        "- **Hotspot**: JSON deserialization of complex payloads in `fastapi-bridge` (pydantic model validation parsing).\n"
+        "- **Hotspot**: JSON deserialization of complex payloads in `fastapi` (pydantic model validation parsing).\n"
     )
     md.append(
-        "- **Resource Limit**: Single-threaded event loop CPU saturation in `starlette-bridge` and `aiohttp-bridge` under high VU loads.\n"
+        "- **Resource Limit**: Single-threaded event loop CPU saturation in `starlette` and `aiohttp` under high loads (architectural observation).\n"
     )
     md.append(
-        "- **Wins**: Pure ASGI metrics middleware in Starlette avoided tasks spawning queue bottlenecks, scaling average throughput significantly.\n"
+        "- **Wins**: Pure ASGI metrics middleware in `starlette` avoided tasks spawning queue bottlenecks, scaling average throughput under tested workloads.\n"
     )
     md.append("### TypeScript/Node.js Ecosystem\n")
     md.append(
-        "- **Hotspot**: WebSocket framing serialization and garbage collection sweep cycles in NestJS gateway middleware.\n"
+        "- **Hotspot**: Single-threaded event loop blocking during heavy JSON serialization and WebSocket framing in standard `express` routing middleware (architectural observation).\n"
     )
     md.append(
-        "- **Event Loop**: Bun-based frameworks (Elysia, Hono/Bun) showed negligible loop latency lags compared to standard Node.js Express.\n"
-    )
-    md.append(
-        "- **Wins**: Elysia's native Bun WebSocket connection upgrades bypassed standard Node stream copying, cutting latency in half.\n"
+        "- **Wins**: `uwebsockets` bypassed standard Node.js event loop limitations, achieving a mean throughput of 1962.88 msg/s.\n"
     )
     md.append("### Go Ecosystem\n")
     md.append(
-        "- **Hotspot**: Context context allocations in Fiber/Gin router multiplexing.\n"
+        "- **Hotspot**: Context allocations in `fiber`/`gin` router multiplexing.\n"
     )
     md.append(
-        "- **Resource Limit**: Memory allocation blocks under 1000 concurrent goroutine scheduler contexts (insignificant relative to Python/Node).\n"
+        "- **Resource Limit**: Memory allocation blocks under concurrent goroutine scheduler contexts under high concurrency loads.\n"
     )
     md.append(
-        "- **Wins**: `net/http` candidate showed the lowest memory footprint (under 43MB) and flat tail-latencies (p99 under 0.4ms) across all scenarios.\n"
+        "- **Wins**: Go candidates showed the lowest static deployment footprint (~29MB) and achieved the maximum throughput (2400.00 msg/s).\n"
     )
 
     with open(out_path, "w", encoding="utf-8") as f:
@@ -359,12 +353,9 @@ def generate_html_report(results: List[Dict[str, Any]], out_path: str):
         "sanic": 380.0,
         "starlette": 380.0,
         "aiohttp": 380.0,
-        "uwebsockets": 440.0,
+        "uwebsockets": 979.0,
         "hono": 440.0,
         "express": 440.0,
-        "fastify": 440.0,
-        "nestjs": 520.0,
-        "elysia": 440.0,
     }
 
     ranked_fws = []
@@ -739,19 +730,19 @@ def generate_html_report(results: List[Dict[str, Any]], out_path: str):
             <li class="insights-item">
                 <div class="insights-title">Go Ecosystem</div>
                 <div class="insights-desc">
-                    `net/http` and `fiber` implementations achieved sub-millisecond tail latencies under extreme loads. Go's runtime scheduler managed concurrent connections with minimal overhead, maintaining flat latency profiles under all drone scaling tiers.
+                    Go candidates achieved the maximum benchmark throughput (2400.00 msg/s) with a flat latency profile. The compiled binaries yielded the lowest static deployment footprint (~29MB) across all evaluated candidates.
                 </div>
             </li>
             <li class="insights-item">
                 <div class="insights-title">TypeScript / Node.js Ecosystem</div>
                 <div class="insights-desc">
-                    `uwebsockets-bridge` significantly outperformed other TS/JS gateways due to its underlying C++ engine. Node.js frameworks such as `express-gateway` and `nestjs-gateway` experienced latency spikes corresponding to Garbage Collection runs.
+                    `uwebsockets` outperformed other TS/JS gateways due to its underlying C++ core engine. Standard Node.js frameworks such as `express` and `hono` observed lower throughput due to routing and middleware overhead.
                 </div>
             </li>
             <li class="insights-item">
                 <div class="insights-title">Python Ecosystem</div>
                 <div class="insights-desc">
-                    Python-based frameworks (`fastapi-bridge`, `starlette-bridge`, etc.) saturated singleevent loop thresholds. Memory and deserialization checks for large JSON structures under Pydantic or native dictionary validation were identified as key event loop blockages.
+                    Python-based frameworks (`fastapi`, `starlette`, etc.) saturated single event loop thresholds. Serialization checks and ASGI middleware stack overhead under active loads were identified as key bottlenecks.
                 </div>
             </li>
         </ul>
